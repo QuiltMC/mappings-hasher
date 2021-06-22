@@ -1,0 +1,31 @@
+plugins {
+    id 'java'
+}
+
+group 'org.quiltmc'
+version '1.0-SNAPSHOT'
+
+// Target JDK 8
+tasks.withType(JavaCompile).configureEach {
+    if (JavaVersion.current().isJava9Compatible()) {
+        options.release.set(8)
+    } else {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = "Quilt"
+        url = "https://maven.quiltmc.org/repository/release"
+    }
+}
+
+dependencies {
+    implementation 'org.quiltmc:quilt-json5:1.0.0'
+    implementation 'org.quiltmc:lorenz-tiny:3.0.0'
+    implementation 'org.cadixdev:lorenz-io-proguard:0.5.6'
+    implementation "org.ow2.asm:asm:9.1"
+}
