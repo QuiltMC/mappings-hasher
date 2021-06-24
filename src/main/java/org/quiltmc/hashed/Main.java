@@ -1,18 +1,25 @@
 package org.quiltmc.hashed;
 
 import net.fabricmc.lorenztiny.TinyMappingsWriter;
+import org.cadixdev.bombe.type.signature.FieldSignature;
 import org.cadixdev.lorenz.MappingSet;
 import org.cadixdev.lorenz.io.TextMappingsReader;
 import org.cadixdev.lorenz.io.proguard.ProGuardReader;
 import org.cadixdev.lorenz.model.ClassMapping;
 import org.cadixdev.lorenz.model.FieldMapping;
+import org.cadixdev.lorenz.model.InnerClassMapping;
 import org.cadixdev.lorenz.model.MethodMapping;
-import org.objectweb.asm.*;
+import org.quiltmc.hashed.asm.ClassInfo;
+import org.quiltmc.hashed.asm.ClassResolver;
+import org.quiltmc.hashed.asm.FieldInfo;
+import org.quiltmc.hashed.asm.MethodInfo;
+import org.quiltmc.hashed.web.Library;
+import org.quiltmc.hashed.web.Version;
+import org.quiltmc.hashed.web.VersionManifest;
 import org.quiltmc.json5.JsonReader;
 
 import java.io.*;
 import java.math.BigInteger;
-import java.net.JarURLConnection;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -20,13 +27,20 @@ import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
-import java.util.jar.JarFile;
 
 public class Main {
     public static final String MANIFEST_URL = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json";
 
+    public static MessageDigest SHA256;
+    static {
+        try {
+            SHA256 = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("No such algorithm: SHA-256");
+        }
+    }
+
     public static void main(String[] args) throws IOException, NoSuchAlgorithmException {
-        MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
 
         if (args.length != 1) {
             System.out.println("Usage: <command> <version>");
@@ -39,184 +53,208 @@ public class Main {
         JsonReader manifestJson = JsonReader.json(new BufferedReader(manifestReader));
         VersionManifest manifest = VersionManifest.fromJson(manifestJson);
 
-        Optional<VersionManifest.Version> versionEntry = manifest.versions().stream().filter(v -> v.id().equals(args[0])).findFirst();
-        if (!versionEntry.isPresent()) {
+
+        System.out.println("Reading version...");
+        Version version = manifest.versions().get(args[0]);
+        if (version == null) {
             System.out.println("Unknown version: " + args[0]);
             return;
         }
+        version.resolve();
 
-        System.out.println("Reading version json...");
-        URL versionUrl = versionEntry.get().url();
-        InputStreamReader versionReader = new InputStreamReader(versionUrl.openConnection().getInputStream());
-        JsonReader versionJson = JsonReader.json(new BufferedReader(versionReader));
-        Version version = Version.fromJson(versionJson);
+        System.out.println("Loading mojang mappings...");
+        File mojmapFile = version.downloads().get("client_mappings").getOrDownload();
+        InputStream mojmapStream = Files.newInputStream(mojmapFile.toPath());
+        TextMappingsReader mappingsReader = new ProGuardReader(new InputStreamReader(mojmapStream));
+        MappingSet obf_to_mojmap = mappingsReader.read().reverse();
 
-        System.out.println("Loading jar...");
-        URL jarUrl = new URL("jar:" + version.downloads().get("client").url() + "!/");
-        JarURLConnection jarURLConnection = (JarURLConnection) jarUrl.openConnection();
-        JarFile jar = jarURLConnection.getJarFile();
+        Set<String> dontObfuscateAnnotations = new HashSet<>();
+        dontObfuscateAnnotations.add("net/minecraft/obfuscate/DontObfuscate");
+        Set<String> dontObfuscateClassAnnotations = new HashSet<>();
+        obf_to_mojmap.getTopLevelClassMappings().stream().filter(c ->
+                "C_prlazzma".equals("C_" + createHashedName(c.getFullDeobfuscatedName()).substring(0, 8))
+        ).forEach(c -> dontObfuscateClassAnnotations.add(c.getFullObfuscatedName()));
+        ClassResolver resolver = new ClassResolver(dontObfuscateAnnotations, dontObfuscateClassAnnotations);
 
-        System.out.println("Collecting classes, fields and methods...");
-        Map<String, ClassInfo> classes = new HashMap<>();
-        jar.stream().filter(e -> e.getName().endsWith(".class")).forEach(entry -> {
-            try {
-                InputStream stream = jar.getInputStream(entry);
-                ClassReader classReader = new ClassReader(stream);
+        System.out.println("Loading client jar...");
+        File clientJar = version.downloads().get("client").getOrDownload();
+        resolver.addJar(clientJar, true);
 
-                ClassInfo.ClassInfoVisitor classVisitor = new ClassInfo.ClassInfoVisitor();
-                classReader.accept(classVisitor, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
-                ClassInfo info = classVisitor.getClassInfo();
-                classes.put(info.name, info);
-            } catch (IOException e) {
-                System.out.println("Error reading class file: " + entry.getName());
-            }
-        });
-
-        System.out.println("Resolve overrides...");
-        for (ClassInfo classInfo : classes.values()) {
-            for (ClassInfo.MethodInfo methodInfo : classInfo.methods.values()) {
-                methodInfo.resolveOverrides(classes);
-            }
+        System.out.println("Loading libs...");
+        for (Library lib : version.libraries()) {
+            File libJar = lib.getOrDownload();
+            resolver.addJar(libJar, false);
         }
 
-        System.out.println("Resolve equalities...");
-        Map<ClassInfo.MethodInfo, Set<ClassInfo.MethodInfo>> equalities = new HashMap<>();
+        System.out.println("Resolving classes...");
+        HashMap<String, ClassInfo> classes = new HashMap<>();
+        resolver.foreachClassInfoInJar(clientJar, classInfo -> {
+            classes.put(classInfo.name(), classInfo);
+        });
+
+        Map<MethodInfo, Set<MethodInfo>> equalities = new HashMap<>();
+
+        // Direct equalities: C extends A and B, all 3 methods should be named (AxB)
         for (ClassInfo classInfo : classes.values()) {
-            for (ClassInfo.MethodInfo methodInfo : classInfo.methods.values()) {
-                if (methodInfo.overrides.size() > 1) {
-                    for (ClassInfo.MethodInfo overrideInfo : methodInfo.overrides) {
-                        Set<ClassInfo.MethodInfo> equals = equalities.computeIfAbsent(overrideInfo, i -> new HashSet<>());
-                        equals.addAll(methodInfo.overrides);
+            for (MethodInfo methodInfo : classInfo.methods().values()) {
+                if (methodInfo.superMethods().size() > 1) {
+                    for (MethodInfo overrideInfo : methodInfo.superMethods()) {
+                        Set<MethodInfo> equals = equalities.computeIfAbsent(overrideInfo, i -> new HashSet<>());
+                        equals.addAll(methodInfo.superMethods());
                     }
                 }
             }
         }
 
-        System.out.println("Loading mojang mappings...");
-        URL mappingsUrl = version.downloads().get("client_mappings").url();
-        TextMappingsReader mappingsReader = new ProGuardReader(new InputStreamReader(mappingsUrl.openConnection().getInputStream()));
-        MappingSet obf_to_mojmap = mappingsReader.read().reverse();
+        // Indirect equalities: D extends A and B, E extends B and C, all 5 methods should be named (AxBxC)
+        // TODO: Not sure if this is correct (or even necessary)
+        for (Map.Entry<MethodInfo, Set<MethodInfo>> entry : equalities.entrySet()) {
+            Set<MethodInfo> checked = new HashSet<>();
+            Set<MethodInfo> toCheck = new HashSet<>(entry.getValue());
+            entry.getValue().clear();
+            while (!toCheck.isEmpty()) {
+                Set<MethodInfo> currentCheck = new HashSet<>(toCheck);
+                toCheck.clear();
+                for (MethodInfo info : currentCheck) {
+                    if (checked.contains(info)) {
+                        continue;
+                    }
+                    entry.getValue().addAll(equalities.get(info));
+                    toCheck.addAll(equalities.get(info));
+                    checked.add(info);
+                }
+            }
+        }
+
+        // Resolve name sets
+        Map<MethodInfo, Set<MethodInfo>> nameSets = new HashMap<>();
+        for (ClassInfo classInfo : classes.values()) {
+            for (MethodInfo methodInfo : classInfo.methods().values()) {
+                Set<MethodInfo> nameSet = nameSets.computeIfAbsent(methodInfo, m -> new HashSet<>());
+                if (equalities.containsKey(methodInfo)) {
+                    nameSet.addAll(equalities.get(methodInfo));
+                }
+                else if (!methodInfo.superMethods().isEmpty()) {
+                    for (MethodInfo superMethod : methodInfo.superMethods()) {
+                        if (equalities.containsKey(superMethod)) {
+                            nameSet.addAll(equalities.get(superMethod));
+                        }
+                        else {
+                            nameSet.add(superMethod);
+                        }
+                    }
+                }
+                else {
+                    nameSet.add(methodInfo);
+                }
+            }
+        }
+
+        // Collecting unique simple class names
+        HashMap<String, Set<ClassInfo>> simpleToInfo = new HashMap<>();
+        for (ClassInfo classInfo : classes.values()) {
+            ClassMapping<?, ?> classMojmap = obf_to_mojmap.getClassMapping(classInfo.name()).orElse(null);
+            if (classMojmap == null) {
+                throw new RuntimeException("Missing mapping for class " + classInfo.name());
+            }
+
+            String fullName = classMojmap.getFullDeobfuscatedName();
+            String simpleName = fullName.substring(fullName.lastIndexOf('/') + 1);
+            Set<ClassInfo> sameSimple = simpleToInfo.computeIfAbsent(simpleName, s -> new HashSet<>());
+            sameSimple.add(classInfo);
+        }
 
         System.out.println("Creating hashed mappings...");
         MappingSet obf_to_hashed = MappingSet.create();
         for (ClassInfo classInfo : classes.values()) {
-            ClassMapping<?, ?> classMojmap = obf_to_mojmap.getClassMapping(classInfo.name).orElse(null);
+            ClassMapping<?, ?> classMojmap = obf_to_mojmap.getClassMapping(classInfo.name()).orElse(null);
             if (classMojmap == null) {
-                System.err.println("Missing mapping for class " + classInfo.name);
-                continue;
+                throw new RuntimeException("Missing mapping for class " + classInfo.name());
             }
 
-            // TODO: Handle package-unique classes
-            String classNameRaw = classMojmap.getFullDeobfuscatedName();
-            byte[] classBytes = sha256.digest(classNameRaw.getBytes());
-            BigInteger classInt = new BigInteger(classBytes);
-            String className = "C_" + BaseConverter.toBase26(classInt).substring(0, 8);
-            ClassMapping<?, ?> classHashed = obf_to_hashed.getOrCreateClassMapping(classInfo.name);
-            classHashed.setDeobfuscatedName(className);
+            ClassMapping<?, ?> classHashed = obf_to_hashed.getOrCreateClassMapping(classInfo.name());
+            if (classInfo.isObfuscated()) {
+                String classNameRaw;
+                String fullName = classMojmap.getFullDeobfuscatedName();
+                String simpleName = fullName.substring(fullName.lastIndexOf('/') + 1);
+                if (simpleToInfo.get(simpleName).size() == 1 ) {
+                    // Use simple name whenever it is unique
+                    // This prevents package changes from affecting the hashed mapping
+                    classNameRaw = simpleName;
+                }
+                else {
+                    classNameRaw = fullName;
+                }
+                String className = "C_" + createHashedName(classNameRaw).substring(0, 8);
+                classHashed.setDeobfuscatedName(className);
+            }
 
-            for (ClassInfo.FieldInfo fieldInfo : classInfo.fields) {
-                FieldMapping fieldMojmap = classMojmap.getFieldMapping(fieldInfo.name).orElse(null);
+            // Field mapping
+            for (FieldInfo fieldInfo : classInfo.fields().values()) {
+                FieldMapping fieldMojmap = classMojmap.getFieldMapping(fieldInfo.name()).orElse(null);
                 if (fieldMojmap == null) {
-                    System.err.println("Missing mapping for field " + fieldInfo.name);
+                    throw new RuntimeException("Missing mapping for field " + fieldInfo.name());
+                }
+
+                if (!fieldInfo.isObfuscated()) {
                     continue;
                 }
 
                 String fieldNameRaw = fieldMojmap.getFullDeobfuscatedName();
-                byte[] fieldBytes = sha256.digest(fieldNameRaw.getBytes());
-                BigInteger fieldInt = new BigInteger(fieldBytes);
-                String fieldName = "f_" + BaseConverter.toBase26(fieldInt).substring(0, 8);
-                FieldMapping fieldHashed = classMojmap.createFieldMapping(fieldInfo.name);
+                String fieldName = "f_" + createHashedName(fieldNameRaw).substring(0, 8);
+                FieldMapping fieldHashed = classHashed.createFieldMapping(FieldSignature.of(fieldInfo.name(), fieldInfo.descriptor()));
                 fieldHashed.setDeobfuscatedName(fieldName);
             }
 
-            for (ClassInfo.MethodInfo methodInfo : classInfo.methods.values()) {
+            // Method mapping
+            for (MethodInfo methodInfo : classInfo.methods().values()) {
+                if ("<init>".equals(methodInfo.name()) || "<clinit>".equals(methodInfo.name())) {
+                    continue;
+                }
+
+                Set<MethodInfo> nameSet = nameSets.get(methodInfo);
+                if (nameSet.stream().anyMatch(m -> !m.isObfuscated())) {
+                    continue;
+                }
+
+                MethodMapping methodHashed = classHashed.createMethodMapping(methodInfo.name(), methodInfo.descriptor());
                 Set<String> rawNames = new HashSet<>();
-                if (!methodInfo.overrides.isEmpty()) {
-                    for (ClassInfo.MethodInfo overrideInfo : methodInfo.overrides) {
-                        if (equalities.containsKey(overrideInfo)) {
-                            for (ClassInfo.MethodInfo equalityInfo : equalities.get(overrideInfo)) {
-                                ClassMapping<?, ?> equalityClassMojmap = obf_to_mojmap.getClassMapping(equalityInfo.owner.name).orElse(null);
-                                if (equalityClassMojmap == null) {
-                                    System.err.println("Missing mapping for class " + equalityInfo.owner.name);
-                                    continue;
-                                }
-
-                                MethodMapping equalMethodMojmap = equalityClassMojmap.getMethodMapping(equalityInfo.name, equalityInfo.descriptor).orElse(null);
-                                if (equalMethodMojmap == null) {
-                                    System.err.println("Missing mapping for method " + equalityInfo.owner.name + "/" + equalityInfo.name + equalityInfo.descriptor);
-                                    continue;
-                                }
-
-                                rawNames.add(equalMethodMojmap.getFullDeobfuscatedName());
-                            }
-                        }
-                        else {
-                            ClassMapping<?, ?> overrideClassMojmap = obf_to_mojmap.getClassMapping(overrideInfo.owner.name).orElse(null);
-                            if (overrideClassMojmap == null) {
-                                System.err.println("Missing mapping for class " + overrideInfo.owner.name);
-                                continue;
-                            }
-
-                            MethodMapping overrideMethodMojmap = overrideClassMojmap.getMethodMapping(overrideInfo.name, overrideInfo.descriptor).orElse(null);
-                            if (overrideMethodMojmap == null) {
-                                System.err.println("Missing mapping for method " + overrideInfo.owner.name + "/" + overrideInfo.name + overrideInfo.descriptor);
-                                continue;
-                            }
-
-                            rawNames.add(overrideMethodMojmap.getFullDeobfuscatedName());
-                        }
+                for (MethodInfo m : nameSet) {
+                    ClassMapping<?, ?> classMapping = obf_to_mojmap.getClassMapping(m.owner().name()).orElse(null);
+                    if (classMapping == null) {
+                        throw new RuntimeException("Missing mapping for class " + m.owner().name());
                     }
-                }
-                else if (equalities.containsKey(methodInfo)) {
-                    for (ClassInfo.MethodInfo equalityInfo : equalities.get(methodInfo)) {
-                        ClassMapping<?, ?> equalityClassMojmap = obf_to_mojmap.getClassMapping(equalityInfo.owner.name).orElse(null);
-                        if (equalityClassMojmap == null) {
-                            System.err.println("Missing mapping for class " + equalityInfo.owner.name);
-                            continue;
-                        }
-
-                        MethodMapping equalMethodMojmap = equalityClassMojmap.getMethodMapping(equalityInfo.name, equalityInfo.descriptor).orElse(null);
-                        if (equalMethodMojmap == null) {
-                            System.err.println("Missing mapping for method " + equalityInfo.owner.name + "/" + equalityInfo.name + equalityInfo.descriptor);
-                            continue;
-                        }
-
-                        rawNames.add(equalMethodMojmap.getFullDeobfuscatedName());
+                    MethodMapping methodMapping = classMapping.getMethodMapping(m.name(), m.descriptor()).orElse(null);
+                    if (methodMapping == null) {
+                        throw new RuntimeException("Missing mapping for method " + m.getFullName());
                     }
-                }
-                else {
-                    MethodMapping methodMojmap = classMojmap.getMethodMapping(methodInfo.name, methodInfo.descriptor).orElse(null);
-                    if (methodMojmap == null) {
-                        System.err.println("Missing mapping for method " + methodInfo.owner.name + "/" + methodInfo.name + methodInfo.descriptor);
-                        continue;
-                    }
-                    rawNames.add(methodMojmap.getFullDeobfuscatedName());
+                    rawNames.add(methodMapping.getFullDeobfuscatedName());
                 }
 
-                BigInteger methodInt = BigInteger.ZERO;
-                for (String rawName : rawNames) {
-                    byte[] bytes = sha256.digest(rawName.getBytes());
-                    BigInteger integer = new BigInteger(bytes);
-                    methodInt = methodInt.xor(integer);
-                }
-                String methodName = "m_" + BaseConverter.toBase26(methodInt).substring(0, 8);
-                MethodMapping methodHashed = classHashed.createMethodMapping(methodInfo.name, methodInfo.descriptor);
-                if ("<init>".equals(methodInfo.name) || "<clinit>".equals(methodInfo.name)) {
-                    methodHashed.setDeobfuscatedName(methodInfo.name);
-                }
-                else {
-                    methodHashed.setDeobfuscatedName(methodName);
-                }
+                String methodName = "m_" + createHashedName(rawNames.toArray(new String[] {})).substring(0, 8);
+                methodHashed.setDeobfuscatedName(methodName);
             }
         }
 
         System.out.println("Writing mappings to file...");
-        Path outPath = Paths.get(version.id() + ".tiny");
+        Path outPath = Paths.get("mappings", version.id() + ".tiny");
+        Files.createDirectories(outPath.getParent());
         Files.deleteIfExists(outPath);
         Files.createFile(outPath);
         BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(outPath)));
         TinyMappingsWriter mappingsWriter = new TinyMappingsWriter(writer, "official", "hashed");
         mappingsWriter.write(obf_to_hashed);
         writer.flush();
+        writer.close();
+    }
+
+    public static String createHashedName(String... rawNames) {
+        BigInteger totalInt = BigInteger.ZERO;
+        for (String rawName : rawNames) {
+            byte[] bytes = SHA256.digest(rawName.getBytes());
+            BigInteger integer = new BigInteger(bytes);
+            totalInt = totalInt.xor(integer);
+        }
+        return BaseConverter.toBase26(totalInt);
     }
 }
