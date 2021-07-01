@@ -8,7 +8,6 @@ import org.quiltmc.hashed.asm.ClassInfo;
 import org.quiltmc.hashed.asm.FieldInfo;
 import org.quiltmc.hashed.asm.MethodInfo;
 
-import javax.swing.text.html.Option;
 import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -130,6 +129,31 @@ public class HashedNameProvider {
         return "net/minecraft/unmapped/C_" + getHashedString(getRawClassName(clazz));
     }
 
+    private String getRawMethodName(MethodInfo method) {
+        // Don't look up unobfuscated names
+        if (!method.isObfuscated()) {
+            return method.name();
+        }
+
+        // Get the mappings
+        ClassMapping<?, ?> classMapping = mappings.getClassMapping(method.owner().name())
+                .orElseThrow(() -> new RuntimeException("Missing mapping for class " + method.owner().name()));
+        MethodMapping methodMapping = classMapping.getMethodMapping(method.name(), method.descriptor())
+                .orElseThrow(() -> new RuntimeException("Missing mapping for method " + method.getFullName()));
+
+        String className = getRawClassName(method.owner());
+        boolean isMethodNameUnique = classMapping.getMethodMappings().stream()
+                .filter(m -> m.getDeobfuscatedName().equals(methodMapping.getDeobfuscatedName()))
+                .count() == 1;
+        String methodName = methodMapping.getDeobfuscatedName();
+        String methodDescriptor = isMethodNameUnique ? "" : methodMapping.getDeobfuscatedDescriptor();
+
+        // "m;" prefix: methods with omitted descriptors need to be different to fields
+        // Note that ";" and "." are illegal in jvm identifiers, so this should be safe
+        // "m;<package>/<className>.<methodName>;<methodDescriptor>"
+        return "m;" + className + "." + methodName + ";" + methodDescriptor;
+    }
+
     public String getMethodName(MethodInfo method) {
         // Handle special method names
         if (method.name().equals("<init>") || method.name().equals("<clinit>")) {
@@ -146,14 +170,7 @@ public class HashedNameProvider {
                 return current.name();
             }
 
-            // Get the mappings
-            ClassMapping<?, ?> classMapping = mappings.getClassMapping(current.owner().name())
-                    .orElseThrow(() -> new RuntimeException("Missing mapping for class " + current.owner().name()));
-            MethodMapping methodMapping = classMapping.getMethodMapping(current.name(), current.descriptor())
-                    .orElseThrow(() -> new RuntimeException("Missing mapping for method " + current.getFullName()));
-
-            String className = getRawClassName(current.owner());
-            String currentRawName = className + "/" + methodMapping.getDeobfuscatedName() + methodMapping.getDeobfuscatedDescriptor();
+            String currentRawName = getRawMethodName(current);
 
             // Take the lexicographically "biggest" string
             if (currentRawName.compareTo(rawName) > 0) {
@@ -164,7 +181,7 @@ public class HashedNameProvider {
         return "m_" + getHashedString(rawName);
     }
 
-    public String getFieldName(FieldInfo field) {
+    private String getRawFieldName(FieldInfo field) {
         // Don't hash unobfuscated names
         if (!field.isObfuscated()) {
             return field.name();
@@ -177,9 +194,26 @@ public class HashedNameProvider {
                 .orElseThrow(() -> new RuntimeException("Missing mapping for field " + field.name()));
 
         String className = getRawClassName(field.owner());
-        String rawName = className + "/" + fieldMapping.getDeobfuscatedName();
+        String fieldName = fieldMapping.getDeobfuscatedName();
+        // While java doesn't allow it, the jvm allows fields that only differ in their descriptor.
+        boolean isFieldNameUnique = classMapping.getFieldMappings().stream()
+                .filter(f -> f.getDeobfuscatedName().equals(fieldMapping.getDeobfuscatedName()))
+                .count() == 1;
+        String fieldDescriptor = isFieldNameUnique ? "" : fieldMapping.getType().get().toString();
 
-        return "f_" + getHashedString(rawName);
+        // "f;" prefix: fields need to be different to methods with omitted descriptors
+        // Note that ";" and "." are illegal in jvm identifiers, so this should be safe
+        // "f;<className>.<fieldName>;<fieldDescriptor>"
+        return "f;" + className + "." + fieldName + ";" + fieldDescriptor;
+    }
+
+    public String getFieldName(FieldInfo field) {
+        // Don't hash unobfuscated names
+        if (!field.isObfuscated()) {
+            return field.name();
+        }
+
+        return "f_" + getHashedString(getRawFieldName(field));
     }
 
     private String getHashedString(String string) {
