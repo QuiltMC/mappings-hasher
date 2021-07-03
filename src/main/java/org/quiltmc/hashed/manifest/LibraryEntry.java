@@ -1,4 +1,4 @@
-package org.quiltmc.hashed.web;
+package org.quiltmc.hashed.manifest;
 
 import org.quiltmc.json5.JsonReader;
 
@@ -7,17 +7,17 @@ import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-public class Library implements IWebResource {
+public class LibraryEntry implements IWebResource {
     private Path path;
     private String sha1;
     private URL url;
 
     private boolean allowed = true;
 
-    private Library() { }
+    private LibraryEntry() { }
 
-    public static Library fromJson(JsonReader reader) throws IOException {
-        Library lib = new Library();
+    public static LibraryEntry fromJson(JsonReader reader) throws IOException {
+        LibraryEntry lib = new LibraryEntry();
         lib.parseJson(reader);
         return lib;
     }

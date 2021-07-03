@@ -1,4 +1,4 @@
-package org.quiltmc.hashed.web;
+package org.quiltmc.hashed.manifest;
 
 import org.quiltmc.json5.JsonReader;
 
@@ -15,19 +15,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class Version implements IWebResource {
+public class VersionEntry implements IWebResource {
     private String id;
     private ReleaseType type;
     private URL url;
     private String sha1;
 
-    private Map<String, Download> downloads;
-    private List<Library> libraries;
+    private Map<String, DownloadEntry> downloads;
+    private List<LibraryEntry> libraries;
 
-    private Version() { }
+    private VersionEntry() { }
 
-    public static Version fromJson(JsonReader reader) throws IOException {
-        Version version = new Version();
+    public static VersionEntry fromJson(JsonReader reader) throws IOException {
+        VersionEntry version = new VersionEntry();
         version.parseJson(reader);
         return version;
     }
@@ -47,11 +47,11 @@ public class Version implements IWebResource {
         return type;
     }
 
-    public Map<String, Download> downloads() {
+    public Map<String, DownloadEntry> downloads() {
         return downloads;
     }
 
-    public List<Library> libraries() {
+    public List<LibraryEntry> libraries() {
         return libraries;
     }
 
@@ -101,7 +101,7 @@ public class Version implements IWebResource {
                 filename = downloadName + ".jar";
             }
             filename = filename.substring(filename.lastIndexOf('/') + 1);
-            Download download = Download.fromJson(reader, Paths.get("versions", id, filename));
+            DownloadEntry download = DownloadEntry.fromJson(reader, Paths.get("versions", id, filename));
             downloads.put(downloadName, download);
         }
         reader.endObject();
@@ -114,7 +114,7 @@ public class Version implements IWebResource {
 
         reader.beginArray();
         while (reader.hasNext()) {
-            Library lib = Library.fromJson(reader);
+            LibraryEntry lib = LibraryEntry.fromJson(reader);
             if (lib.isAllowed()) {
                 libraries.add(lib);
             }

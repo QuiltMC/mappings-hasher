@@ -1,4 +1,4 @@
-package org.quiltmc.hashed.web;
+package org.quiltmc.hashed.manifest;
 
 import org.quiltmc.json5.JsonReader;
 
@@ -6,13 +6,13 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
 
-public class Download implements IWebResource {
+public class DownloadEntry implements IWebResource {
     private final URL url;
     private final String sha1;
     private final int size;
     private final Path path;
 
-    public Download(URL url, int size, String sha1, Path path) {
+    public DownloadEntry(URL url, int size, String sha1, Path path) {
         this.url = url;
         this.size = size;
         this.sha1 = sha1;
@@ -38,7 +38,7 @@ public class Download implements IWebResource {
         return size;
     }
 
-    public static Download fromJson(JsonReader reader, Path path) throws IOException {
+    public static DownloadEntry fromJson(JsonReader reader, Path path) throws IOException {
         URL url = null;
         String sha1 = null;
         int size = -1;
@@ -62,6 +62,6 @@ public class Download implements IWebResource {
         }
         reader.endObject();
 
-        return new Download(url, size, sha1, path);
+        return new DownloadEntry(url, size, sha1, path);
     }
 }

@@ -1,4 +1,4 @@
-package org.quiltmc.hashed.web;
+package org.quiltmc.hashed.manifest;
 
 import org.quiltmc.json5.JsonReader;
 
@@ -7,30 +7,30 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class VersionManifest {
-    private final Version latestRelease;
-    private final Version latestSnapshot;
-    private final Map<String, Version> versions;
+    private final VersionEntry latestRelease;
+    private final VersionEntry latestSnapshot;
+    private final Map<String, VersionEntry> versions;
 
-    private VersionManifest(Map<String, Version> versions, Version latestRelease, Version latestSnapshot) {
+    private VersionManifest(Map<String, VersionEntry> versions, VersionEntry latestRelease, VersionEntry latestSnapshot) {
         this.versions = versions;
         this.latestRelease = latestRelease;
         this.latestSnapshot = latestSnapshot;
     }
 
-    public Map<String, Version> versions() {
+    public Map<String, VersionEntry> versions() {
         return versions;
     }
 
-    public Version latestRelease() {
+    public VersionEntry latestRelease() {
         return latestRelease;
     }
 
-    public Version latestSnapshot() {
+    public VersionEntry latestSnapshot() {
         return latestSnapshot;
     }
 
     public static VersionManifest fromJson(JsonReader reader) throws IOException {
-        Map<String, Version> versions = new HashMap<>();
+        Map<String, VersionEntry> versions = new HashMap<>();
         String latestReleaseId = null;
         String latestSnapshotId = null;
 
@@ -58,7 +58,7 @@ public class VersionManifest {
                 case "versions":
                     reader.beginArray();
                     while (reader.hasNext()) {
-                        Version version = Version.fromJson(reader);
+                        VersionEntry version = VersionEntry.fromJson(reader);
                         versions.put(version.id(), version);
                     }
                     reader.endArray();
@@ -74,8 +74,8 @@ public class VersionManifest {
             throw new IOException("Missing latest release or snapshot");
         }
 
-        Version latestRelease = versions.get(latestReleaseId);
-        Version latestSnapshot = versions.get(latestSnapshotId);
+        VersionEntry latestRelease = versions.get(latestReleaseId);
+        VersionEntry latestSnapshot = versions.get(latestSnapshotId);
 
         if (latestRelease == null || latestSnapshot == null) {
             throw new IOException("Invalid latest release or snapshot");

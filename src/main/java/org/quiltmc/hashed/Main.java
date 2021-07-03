@@ -2,8 +2,11 @@ package org.quiltmc.hashed;
 
 import net.fabricmc.lorenztiny.TinyMappingsWriter;
 import org.cadixdev.lorenz.MappingSet;
-import org.quiltmc.hashed.web.Version;
-import org.quiltmc.hashed.web.VersionManifest;
+import org.cadixdev.lorenz.io.TextMappingsReader;
+import org.cadixdev.lorenz.io.proguard.ProGuardReader;
+import org.quiltmc.hashed.manifest.LibraryEntry;
+import org.quiltmc.hashed.manifest.VersionEntry;
+import org.quiltmc.hashed.manifest.VersionManifest;
 import org.quiltmc.json5.JsonReader;
 
 import java.io.*;
@@ -11,6 +14,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.jar.JarFile;
 
 public class Main {
     public static void main(String[] args) throws IOException {
@@ -26,7 +30,7 @@ public class Main {
         VersionManifest manifest = VersionManifest.fromJson(manifestJson);
 
         System.out.println("Reading version...");
-        Version version = manifest.versions().get(args[0]);
+        VersionEntry version = manifest.versions().get(args[0]);
         if (version == null) {
             System.out.println("Unknown version: " + args[0]);
             return;
@@ -38,7 +42,26 @@ public class Main {
             return;
         }
 
-        MappingSet obf_to_hashed = new MappingGenerator(version).generate();
+        System.out.println("Loading Mojang mappings...");
+        File mojmapFile = version.downloads().get("client_mappings").getOrDownload();
+        InputStream mojmapStream = Files.newInputStream(mojmapFile.toPath());
+        TextMappingsReader mappingsReader = new ProGuardReader(new InputStreamReader(mojmapStream));
+        MappingSet obf_to_mojmap = mappingsReader.read().reverse();
+        MappingHasher mappingHasher = new MappingHasher(obf_to_mojmap, "net/minecraft/unmapped");
+
+        System.out.println("Loading libs...");
+        for (LibraryEntry lib : version.libraries()) {
+            JarFile libJar = new JarFile(lib.getOrDownload());
+            mappingHasher.addLibrary(libJar);
+        }
+
+        System.out.println("Loading client jar...");
+        JarFile clientJar = new JarFile(version.downloads().get("client").getOrDownload());
+
+        System.out.println("Generating mappings...");
+        mappingHasher.addDontObfuscateAnnotation("net/minecraft/unmapped/C_qwuptkcl", true);
+        mappingHasher.addDontObfuscateAnnotation("net/minecraft/unmapped/C_prlazzma", true);
+        MappingSet obf_to_hashed = mappingHasher.generate(clientJar);
 
         System.out.println("Writing mappings to file...");
         Path outPath = Paths.get("mappings", version.id() + ".tiny");

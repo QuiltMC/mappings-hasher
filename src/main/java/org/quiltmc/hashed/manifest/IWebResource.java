@@ -1,4 +1,4 @@
-package org.quiltmc.hashed.web;
+package org.quiltmc.hashed.manifest;
 
 import java.io.*;
 import java.net.URL;

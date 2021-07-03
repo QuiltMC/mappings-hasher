@@ -44,7 +44,7 @@ public class ClassResolver {
                     classToObfuscated.put(className, obfuscated);
                 }
                 catch (IOException exception) {
-                    System.err.println("Error reading jar...");
+                    throw new RuntimeException(exception);
                 }
             }
         });
@@ -62,7 +62,7 @@ public class ClassResolver {
                 reader = new ClassReader(name);
             }
             catch (IOException exception) {
-                throw new RuntimeException("Couldn't find class " + name);
+                throw new RuntimeException("Class not found: " + name);
             }
         }
 

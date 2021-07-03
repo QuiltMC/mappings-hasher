@@ -16,13 +16,13 @@ import java.util.stream.Collectors;
 
 public class HashedNameProvider {
     private final MessageDigest digest;
-    private final Set<ClassInfo> classes;
     private final MappingSet mappings;
+    private final String defaultPackage;
 
     private final Map<MethodInfo, Set<MethodInfo>> methodNameSets;
     private final Map<String, Set<ClassInfo>> simpleClassNameSet;
 
-    public HashedNameProvider(Set<ClassInfo> classes, MappingSet mappings) {
+    public HashedNameProvider(Set<ClassInfo> classes, MappingSet mappings, String defaultPackage) {
         try {
             digest = MessageDigest.getInstance("SHA-256");
         }
@@ -30,8 +30,8 @@ public class HashedNameProvider {
             throw new RuntimeException(e);
         }
 
-        this.classes = classes;
         this.mappings = mappings;
+        this.defaultPackage = defaultPackage;
         this.simpleClassNameSet = computeSimpleClassNameSet(classes, mappings);
         this.methodNameSets = computeMethodNameSets(classes.stream().flatMap(c -> c.methods().stream()).collect(Collectors.toSet()));
     }
@@ -126,7 +126,9 @@ public class HashedNameProvider {
             return clazz.name();
         }
 
-        return "net/minecraft/unmapped/C_" + getHashedString(getRawClassName(clazz));
+        String prefix = clazz.name().contains("$") || this.defaultPackage.isEmpty() ? "" : this.defaultPackage + "/";
+
+        return prefix + "C_" + getHashedString(getRawClassName(clazz));
     }
 
     private String getRawMethodName(MethodInfo method) {
@@ -182,7 +184,7 @@ public class HashedNameProvider {
     }
 
     private String getRawFieldName(FieldInfo field) {
-        // Don't hash unobfuscated names
+        // Don't look up unobfuscated names
         if (!field.isObfuscated()) {
             return field.name();
         }
