@@ -1,4 +1,4 @@
-package org.quiltmc.hashed.manifest;
+package org.quiltmc.mappings_hasher.manifest;
 
 public enum ReleaseType {
     RELEASE,

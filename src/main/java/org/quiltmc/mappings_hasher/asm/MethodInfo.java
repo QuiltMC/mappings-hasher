@@ -1,9 +1,8 @@
-package org.quiltmc.hashed.asm;
+package org.quiltmc.mappings_hasher.asm;
 
 import org.objectweb.asm.Opcodes;
 
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
 
 public class MethodInfo {

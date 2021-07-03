@@ -1,4 +1,4 @@
-package org.quiltmc.hashed.asm;
+package org.quiltmc.mappings_hasher.asm;
 
 import org.objectweb.asm.*;
 

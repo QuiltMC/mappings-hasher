@@ -1,12 +1,12 @@
-package org.quiltmc.hashed;
+package org.quiltmc.mappings_hasher;
 
 import net.fabricmc.lorenztiny.TinyMappingsWriter;
 import org.cadixdev.lorenz.MappingSet;
 import org.cadixdev.lorenz.io.TextMappingsReader;
 import org.cadixdev.lorenz.io.proguard.ProGuardReader;
-import org.quiltmc.hashed.manifest.LibraryEntry;
-import org.quiltmc.hashed.manifest.VersionEntry;
-import org.quiltmc.hashed.manifest.VersionManifest;
+import org.quiltmc.mappings_hasher.manifest.LibraryEntry;
+import org.quiltmc.mappings_hasher.manifest.VersionEntry;
+import org.quiltmc.mappings_hasher.manifest.VersionManifest;
 import org.quiltmc.json5.JsonReader;
 
 import java.io.*;

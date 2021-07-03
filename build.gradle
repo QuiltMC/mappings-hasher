@@ -17,7 +17,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 application {
-    mainClass = 'org.quiltmc.hashed.Main'
+    mainClass = 'org.quiltmc.mappings_hasher.Main'
 }
 
 repositories {

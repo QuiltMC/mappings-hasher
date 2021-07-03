@@ -1,14 +1,14 @@
-package org.quiltmc.hashed;
+package org.quiltmc.mappings_hasher;
 
 import org.cadixdev.bombe.type.signature.FieldSignature;
 import org.cadixdev.lorenz.MappingSet;
 import org.cadixdev.lorenz.model.ClassMapping;
 import org.cadixdev.lorenz.model.FieldMapping;
 import org.cadixdev.lorenz.model.MethodMapping;
-import org.quiltmc.hashed.asm.ClassInfo;
-import org.quiltmc.hashed.asm.ClassResolver;
-import org.quiltmc.hashed.asm.FieldInfo;
-import org.quiltmc.hashed.asm.MethodInfo;
+import org.quiltmc.mappings_hasher.asm.ClassInfo;
+import org.quiltmc.mappings_hasher.asm.ClassResolver;
+import org.quiltmc.mappings_hasher.asm.FieldInfo;
+import org.quiltmc.mappings_hasher.asm.MethodInfo;
 
 import java.util.HashSet;
 import java.util.Set;
