@@ -17,7 +17,7 @@ The repository as is, is designed for generating hashed Minecraft mappings.
 You simply invoke the jar with the version id from the version manifest as the argument.
 For example, in order to create the hashed mappings for the first release candidate for 1.17.1 you run:
 
-    java <jar-file> 1.17.1-rc1
+    java -jar <jar-file> 1.17.1-rc1
 
 This will download the mappings, the client jar and all required libraries and cache them for future runs.
 Then it will create the output jar in `out/mappings/hashed-<version>.jar`.
