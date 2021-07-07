@@ -66,17 +66,15 @@ public class Main {
         MappingSet obf_to_hashed = mappingsHasher.generate(clientJar);
 
         System.out.println("Writing mappings to file...");
-        Path outPath = Paths.get("mappings", "hashed-" + version.id() + ".jar");
+        Path outPath = Paths.get("mappings", "hashed-" + version.id() + ".tiny");
         Files.createDirectories(outPath.getParent());
         Files.deleteIfExists(outPath);
         Files.createFile(outPath);
 
-        JarOutputStream outJar = new JarOutputStream(Files.newOutputStream(outPath));
-        outJar.putNextEntry(new ZipEntry("hashed/mappings.tiny"));
-        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(outJar));
+        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(outPath)));
         TinyMappingsWriter mappingsWriter = new TinyMappingsWriter(writer, "official", "hashed");
         mappingsWriter.write(obf_to_hashed);
         writer.flush();
-        outJar.close();
+        writer.close();
     }
 }

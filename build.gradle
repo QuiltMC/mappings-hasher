@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'application'
+    id 'maven-publish'
 }
 
 group 'org.quiltmc'
@@ -33,4 +34,25 @@ dependencies {
     implementation 'org.quiltmc:lorenz-tiny:3.0.0'
     implementation 'org.cadixdev:lorenz-io-proguard:0.5.6'
     implementation "org.ow2.asm:asm:9.1"
+}
+
+tasks.getByName("run").setArgsString(minecraftVersion)
+
+task mappingsJar(type: Jar) {
+    dependsOn run
+    from "mappings/hashed-${minecraftVersion}.tiny"
+    eachFile {
+        setName("hashed/mappings.tiny")
+    }
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            groupId = 'org.quiltmc'
+            artifactId = 'hashed-mojmap'
+            version = minecraftVersion
+            artifacts = [mappingsJar]
+        }
+    }
 }

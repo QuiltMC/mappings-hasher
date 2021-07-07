@@ -1,0 +1,31 @@
+name: "Generate and publish"
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Minecraft version from the version manifest"
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: openjdk:16-jdk
+      options: --user root
+    steps:
+      - name: Cache build and application cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ./build
+            ./cache
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Validate Gradle wrapper
+        uses: gradle/wrapper-validation-action@v1
+      - name: Generate and publish mappings
+        run: ./gradlew publish -PminecraftVersion="${{ github.event.inputs.version }}" --stacktrace
+        env:
+          MAVEN_URL: ${{ secrets.MAVEN_URL }}
+          MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
