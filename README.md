@@ -17,7 +17,7 @@ The repository as is, is designed for generating hashed Minecraft mappings.
 You simply invoke the jar with the version id from the version manifest as the argument.
 For example, in order to create the hashed mappings for the first release candidate for 1.17.1 you run:
 
-    java <jar-file> 1.17.1-rc1
+    java -jar <jar-file> 1.17.1-rc1
 
 This will download the mappings, the client jar and all required libraries and cache them for future runs.
 Then it will create the output mappings in `mappings/hashed-<version>.tiny`.
@@ -58,7 +58,7 @@ In order to harden the mapping set against descriptor changes, the descriptor is
 If the method name is unique in its containing class, the descriptor in the raw name is left empty.
 
 If the method is unobfuscated, that means annotated as such, the raw name equals its name in the original mapping.
-The special method names "<init>" and "<clinit>" are also treated as unobfuscated.
+The special method names `<init>` and `<clinit>` are also treated as unobfuscated.
 
 Methods require additional logic since they can override methods in other classes.
 If a method overrides another, it is required that their raw names are equal.
