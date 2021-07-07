@@ -58,7 +58,7 @@ In order to harden the mapping set against descriptor changes, the descriptor is
 If the method name is unique in its containing class, the descriptor in the raw name is left empty.
 
 If the method is unobfuscated, that means annotated as such, the raw name equals its name in the original mapping.
-The special method names "<init>" and "<clinit>" are also treated as unobfuscated.
+The special method names `<init>` and `<clinit>` are also treated as unobfuscated.
 
 Methods require additional logic since they can override methods in other classes.
 If a method overrides another, it is required that their raw names are equal.
