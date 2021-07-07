@@ -20,7 +20,7 @@ For example, in order to create the hashed mappings for the first release candid
     java <jar-file> 1.17.1-rc1
 
 This will download the mappings, the client jar and all required libraries and cache them for future runs.
-Then it will create the output jar in `out/mappings/hashed-<version>.jar`.
+Then it will create the output mappings in `mappings/hashed-<version>.tiny`.
 
 ## Hashing rules
 This section describes how the program generates the hashed names.
