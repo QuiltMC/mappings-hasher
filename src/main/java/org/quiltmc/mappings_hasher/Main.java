@@ -15,6 +15,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.jar.JarFile;
+import java.util.jar.JarOutputStream;
+import java.util.zip.ZipEntry;
 
 public class Main {
     public static void main(String[] args) throws IOException {
@@ -47,32 +49,34 @@ public class Main {
         InputStream mojmapStream = Files.newInputStream(mojmapFile.toPath());
         TextMappingsReader mappingsReader = new ProGuardReader(new InputStreamReader(mojmapStream));
         MappingSet obf_to_mojmap = mappingsReader.read().reverse();
-        MappingHasher mappingHasher = new MappingHasher(obf_to_mojmap, "net/minecraft/unmapped");
+        MappingsHasher mappingsHasher = new MappingsHasher(obf_to_mojmap, "net/minecraft/unmapped");
 
         System.out.println("Loading libs...");
         for (LibraryEntry lib : version.libraries()) {
             JarFile libJar = new JarFile(lib.getOrDownload());
-            mappingHasher.addLibrary(libJar);
+            mappingsHasher.addLibrary(libJar);
         }
 
         System.out.println("Loading client jar...");
         JarFile clientJar = new JarFile(version.downloads().get("client").getOrDownload());
 
         System.out.println("Generating mappings...");
-        mappingHasher.addDontObfuscateAnnotation("net/minecraft/unmapped/C_qwuptkcl", true);
-        mappingHasher.addDontObfuscateAnnotation("net/minecraft/unmapped/C_prlazzma", true);
-        MappingSet obf_to_hashed = mappingHasher.generate(clientJar);
+        mappingsHasher.addDontObfuscateAnnotation("net/minecraft/unmapped/C_qwuptkcl", true);
+        mappingsHasher.addDontObfuscateAnnotation("net/minecraft/unmapped/C_prlazzma", true);
+        MappingSet obf_to_hashed = mappingsHasher.generate(clientJar);
 
         System.out.println("Writing mappings to file...");
-        Path outPath = Paths.get("mappings", version.id() + ".tiny");
+        Path outPath = Paths.get("mappings", "hashed-" + version.id() + ".jar");
         Files.createDirectories(outPath.getParent());
         Files.deleteIfExists(outPath);
         Files.createFile(outPath);
-        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(outPath)));
+
+        JarOutputStream outJar = new JarOutputStream(Files.newOutputStream(outPath));
+        outJar.putNextEntry(new ZipEntry("hashed/mappings.tiny"));
+        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(outJar));
         TinyMappingsWriter mappingsWriter = new TinyMappingsWriter(writer, "official", "hashed");
         mappingsWriter.write(obf_to_hashed);
         writer.flush();
-        writer.close();
-
+        outJar.close();
     }
 }

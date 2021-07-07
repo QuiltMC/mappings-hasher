@@ -14,14 +14,14 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.jar.JarFile;
 
-public class MappingHasher {
+public class MappingsHasher {
     private final MappingSet original;
     private final String defaultPackage;
     private final ClassResolver classResolver = new ClassResolver();
     private final Set<String> dontObfuscateAnnotations = new HashSet<>();
     private final Set<String> hashedDontObfuscateAnnotations = new HashSet<>();
 
-    public MappingHasher(MappingSet original, String defaultPackage) {
+    public MappingsHasher(MappingSet original, String defaultPackage) {
         this.original = original;
         this.defaultPackage = defaultPackage;
     }
