@@ -7,7 +7,7 @@ on:
         required: true
 
 jobs:
-  build:
+  generate-and-publish:
     runs-on: ubuntu-latest
     container:
       image: openjdk:16-jdk
@@ -19,6 +19,7 @@ jobs:
           path: |
             ./build
             ./cache
+          key: hashed-mojmap
       - name: Checkout repository
         uses: actions/checkout@v2
       - name: Validate Gradle wrapper
