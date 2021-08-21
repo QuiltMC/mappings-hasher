@@ -97,7 +97,7 @@ public class HashedNameProvider {
         return nameSets;
     }
 
-    private String getRawClassName(ClassInfo clazz) {
+    public String getRawClassName(ClassInfo clazz) {
         // Don't look up unobfuscated names
         if (!clazz.isObfuscated()) {
             return clazz.name();
@@ -131,7 +131,7 @@ public class HashedNameProvider {
         return prefix + "C_" + getHashedString(getRawClassName(clazz));
     }
 
-    private String getRawMethodName(MethodInfo method) {
+    public String getRawMethodName(MethodInfo method) {
         // Don't look up unobfuscated names
         if (!method.isObfuscated()) {
             return method.name();
@@ -183,7 +183,7 @@ public class HashedNameProvider {
         return "m_" + getHashedString(rawName);
     }
 
-    private String getRawFieldName(FieldInfo field) {
+    public String getRawFieldName(FieldInfo field) {
         // Don't look up unobfuscated names
         if (!field.isObfuscated()) {
             return field.name();

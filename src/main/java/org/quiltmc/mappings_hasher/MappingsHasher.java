@@ -5,6 +5,7 @@ import org.cadixdev.lorenz.MappingSet;
 import org.cadixdev.lorenz.model.ClassMapping;
 import org.cadixdev.lorenz.model.FieldMapping;
 import org.cadixdev.lorenz.model.MethodMapping;
+import org.objectweb.asm.Opcodes;
 import org.quiltmc.mappings_hasher.asm.ClassInfo;
 import org.quiltmc.mappings_hasher.asm.ClassResolver;
 import org.quiltmc.mappings_hasher.asm.FieldInfo;
@@ -33,8 +34,7 @@ public class MappingsHasher {
     public void addDontObfuscateAnnotation(String annotation, boolean hashed) {
         if (hashed) {
             this.hashedDontObfuscateAnnotations.add(annotation);
-        }
-        else {
+        } else {
             dontObfuscateAnnotations.add(annotation);
         }
     }
@@ -55,44 +55,64 @@ public class MappingsHasher {
         }
         // Apply "Don't Obfuscate" annotations
         for (ClassInfo classInfo : classes) {
-            if (classInfo.annotations().stream().anyMatch(dontObfuscateAnnotations::contains)) {
+            String simpleClassName = getSimpleClassName(classInfo.name());
+            String simpleNamedClassName = getSimpleClassName(nameProvider.getRawClassName(classInfo));
+
+            if (simpleClassName.equals(simpleNamedClassName) || Character.isDigit(simpleClassName.charAt(0))) {
                 classInfo.dontObfuscate();
-                classInfo.methods().forEach(MethodInfo::dontObfuscate);
-                classInfo.fields().forEach(FieldInfo::dontObfuscate);
+                if (classInfo.annotations().stream().anyMatch(dontObfuscateAnnotations::contains)) {
+                    classInfo.methods().forEach(MethodInfo::dontObfuscate);
+                    classInfo.fields().forEach(FieldInfo::dontObfuscate);
+                }
             }
+
             for (MethodInfo methodInfo : classInfo.methods()) {
-                if (methodInfo.annotations().stream().anyMatch(dontObfuscateAnnotations::contains)) {
-                    methodInfo.dontObfuscate();
-                    classInfo.dontObfuscate();
+                String simpleMethodName = methodInfo.name();
+                String namedMethodName = nameProvider.getRawMethodName(methodInfo);
+                String simpleNamedMethodName = namedMethodName.substring(namedMethodName.lastIndexOf(".") + 1, namedMethodName.length() - 1);
+                if (simpleMethodName.equals(simpleNamedMethodName) || methodInfo.annotations().stream().anyMatch(dontObfuscateAnnotations::contains)) {
+                    if ((classInfo.access() & Opcodes.ACC_INTERFACE) != 0 && classInfo.methods().size() > 1 && classInfo.annotations().stream().noneMatch(annotation -> annotation.equals("java/lang/FunctionalInterface"))) {
+                        methodInfo.dontObfuscate();
+                    }
                 }
             }
             for (FieldInfo fieldInfo : classInfo.fields()) {
-                if (fieldInfo.annotations().stream().anyMatch(dontObfuscateAnnotations::contains)) {
+                String simpleFieldName = fieldInfo.name();
+                String namedFieldName = nameProvider.getRawFieldName(fieldInfo);
+                String simpleNamedFieldName = namedFieldName.substring(namedFieldName.lastIndexOf(".") + 1, namedFieldName.length() - 1);
+                if (simpleFieldName.equals(simpleNamedFieldName) || fieldInfo.annotations().stream().anyMatch(dontObfuscateAnnotations::contains)) {
                     fieldInfo.dontObfuscate();
-                    classInfo.dontObfuscate();
                 }
             }
         }
 
         MappingSet hashed = MappingSet.create();
         for (ClassInfo classInfo : classes) {
-            // Create class Mapping
+            // Create class mapping
             ClassMapping<?, ?> classHashed = hashed.getOrCreateClassMapping(classInfo.name());
             classHashed.setDeobfuscatedName(nameProvider.getClassName(classInfo));
-
-            for (FieldInfo fieldInfo : classInfo.fields()) {
-                // Create field mapping
-                FieldMapping fieldHashed = classHashed.createFieldMapping(FieldSignature.of(fieldInfo.name(), fieldInfo.descriptor()));
-                fieldHashed.setDeobfuscatedName(nameProvider.getFieldName(fieldInfo));
-            }
 
             for (MethodInfo methodInfo : classInfo.methods()) {
                 // Create method mapping
                 MethodMapping methodHashed = classHashed.createMethodMapping(methodInfo.name(), methodInfo.descriptor());
                 methodHashed.setDeobfuscatedName(nameProvider.getMethodName(methodInfo));
             }
+
+            for (FieldInfo fieldInfo : classInfo.fields()) {
+                // Create field mapping
+                FieldMapping fieldHashed = classHashed.createFieldMapping(FieldSignature.of(fieldInfo.name(), fieldInfo.descriptor()));
+                fieldHashed.setDeobfuscatedName(nameProvider.getFieldName(fieldInfo));
+            }
         }
 
         return hashed;
+    }
+
+    private String getSimpleClassName(String name) {
+        return name.contains("$") ?
+                name.substring(name.lastIndexOf("$") + 1) :
+                (name.contains("/") ?
+                        name.substring(name.lastIndexOf("/") + 1) :
+                        name);
     }
 }
