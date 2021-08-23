@@ -61,8 +61,6 @@ public class Main {
         JarFile clientJar = new JarFile(version.downloads().get("client").getOrDownload());
 
         System.out.println("Generating mappings...");
-        mappingsHasher.addDontObfuscateAnnotation("net/minecraft/unmapped/C_qwuptkcl", true);
-        mappingsHasher.addDontObfuscateAnnotation("net/minecraft/unmapped/C_prlazzma", true);
         MappingSet obf_to_hashed = mappingsHasher.generate(clientJar);
 
         System.out.println("Writing mappings to file...");
