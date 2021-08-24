@@ -59,7 +59,7 @@ publishing {
         def ENV = System.getenv()
 
         if (ENV.MAVEN_URL) {
-            repositories.maven {
+            maven {
                 url = ENV.MAVEN_URL
 
                 credentials {
