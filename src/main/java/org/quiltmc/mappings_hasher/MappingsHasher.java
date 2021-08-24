@@ -34,16 +34,18 @@ public class MappingsHasher {
         // The class generating hashed names from class information and the original mappings
         HashedNameProvider nameProvider = new HashedNameProvider(classes, original, defaultPackage);
 
-        // Apply "Don't Obfuscate" annotations
+        // Detect unobfuscated methods
         for (ClassInfo classInfo : classes) {
-            ClassMapping<?, ?> classMapping = original.getClassMapping(classInfo.name()).orElseThrow(() -> new RuntimeException("Missing mapping for class " + classInfo.name()));
+            ClassMapping<?, ?> classMapping = original.getClassMapping(classInfo.name())
+                    .orElseThrow(() -> new RuntimeException("Missing mapping for class " + classInfo.name()));
 
             if (classInfo.name().equals(classMapping.getFullDeobfuscatedName())) {
                 classInfo.dontObfuscate();
             }
 
             for (MethodInfo methodInfo : classInfo.methods()) {
-                MethodMapping methodMapping = classMapping.getMethodMapping(methodInfo.name(), methodInfo.descriptor()).orElseThrow(() -> new RuntimeException("Missing mapping for method " + methodInfo.name()));
+                MethodMapping methodMapping = classMapping.getMethodMapping(methodInfo.name(), methodInfo.descriptor())
+                        .orElseThrow(() -> new RuntimeException("Missing mapping for method " + methodInfo.name()));
 
                 if (methodInfo.name().equals(methodMapping.getDeobfuscatedName())) {
                     methodInfo.dontObfuscate();
@@ -51,29 +53,49 @@ public class MappingsHasher {
             }
 
             for (FieldInfo fieldInfo : classInfo.fields()) {
-                FieldMapping fieldMapping = classMapping.getFieldMapping(fieldInfo.name()).orElseThrow(() -> new RuntimeException("Missing mapping for field " + fieldInfo.name()));
+                FieldMapping fieldMapping = classMapping.getFieldMapping(FieldSignature.of(fieldInfo.name(), fieldInfo.descriptor()))
+                        .orElseThrow(() -> new RuntimeException("Missing mapping for field " + fieldInfo.name()));
+
                 if (fieldInfo.name().equals(fieldMapping.getDeobfuscatedName())) {
                     fieldInfo.dontObfuscate();
                 }
             }
         }
 
+        // Create the mappings
         MappingSet hashed = MappingSet.create();
         for (ClassInfo classInfo : classes) {
             // Create class mapping
             ClassMapping<?, ?> classHashed = hashed.getOrCreateClassMapping(classInfo.name());
-            classHashed.setDeobfuscatedName(nameProvider.getClassName(classInfo));
+
+            // If null, assume no mapping is required
+            String className = nameProvider.getClassName(classInfo);
+            if (className != null) {
+                classHashed.setDeobfuscatedName(nameProvider.getClassName(classInfo));
+            }
 
             for (MethodInfo methodInfo : classInfo.methods()) {
+                // If null, assume no mapping is required
+                String methodName = nameProvider.getMethodName(methodInfo);
+                if (methodName == null) {
+                    continue;
+                }
+
                 // Create method mapping
                 MethodMapping methodHashed = classHashed.createMethodMapping(methodInfo.name(), methodInfo.descriptor());
-                methodHashed.setDeobfuscatedName(nameProvider.getMethodName(methodInfo));
+                methodHashed.setDeobfuscatedName(methodName);
             }
 
             for (FieldInfo fieldInfo : classInfo.fields()) {
+                // If null, assume no mapping is required
+                String fieldName = nameProvider.getFieldName(fieldInfo);
+                if (fieldName == null) {
+                    continue;
+                }
+
                 // Create field mapping
                 FieldMapping fieldHashed = classHashed.createFieldMapping(FieldSignature.of(fieldInfo.name(), fieldInfo.descriptor()));
-                fieldHashed.setDeobfuscatedName(nameProvider.getFieldName(fieldInfo));
+                fieldHashed.setDeobfuscatedName(fieldName);
             }
         }
 

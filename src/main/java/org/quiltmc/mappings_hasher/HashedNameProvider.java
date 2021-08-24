@@ -1,5 +1,6 @@
 package org.quiltmc.mappings_hasher;
 
+import org.cadixdev.bombe.type.signature.FieldSignature;
 import org.cadixdev.lorenz.MappingSet;
 import org.cadixdev.lorenz.model.ClassMapping;
 import org.cadixdev.lorenz.model.FieldMapping;
@@ -61,9 +62,11 @@ public class HashedNameProvider {
             for (MethodInfo override : method.overrides()) {
                 Set<MethodInfo> nameSet = nameSets.computeIfAbsent(override, m -> new HashSet<>());
                 nameSet.addAll(method.overrides());
+                nameSet.add(method);
             }
             Set<MethodInfo> nameSet = nameSets.computeIfAbsent(method, m -> new HashSet<>());
             nameSet.addAll(method.overrides());
+            nameSet.add(method);
         }
 
         // Resolve name sets
@@ -121,9 +124,9 @@ public class HashedNameProvider {
     }
 
     public String getClassName(ClassInfo clazz) {
-        // Don't hash unobfuscated names
+        // No need for a mapping if the method isn't obfuscated
         if (!clazz.isObfuscated()) {
-            return clazz.name();
+            return null;
         }
 
         String prefix = clazz.name().contains("$") || this.defaultPackage.isEmpty() ? "" : this.defaultPackage + "/";
@@ -157,26 +160,31 @@ public class HashedNameProvider {
     }
 
     public String getMethodName(MethodInfo method) {
-        // Handle special method names
+        // No need for a mapping if the method isn't obfuscated
+        if (!method.isObfuscated()) {
+            return null;
+        }
+
+        // No need to map certain special method names
         if (method.name().equals("<init>") || method.name().equals("<clinit>")) {
-            return method.name();
+            return null;
         }
 
         Set<MethodInfo> nameSet = methodNameSets.get(method);
 
-        // Initialize with the lexicographically "smallest" string
-        String rawName = "";
+        String rawName = getRawMethodName(method);
         for (MethodInfo current : nameSet) {
-            // If there's an unobfuscated method in the name set, use that name directly
+            // No need for a mapping if there's an unobfuscated method in the name set
             if (!current.isObfuscated()) {
-                return current.name();
+                return null;
             }
 
             String currentRawName = getRawMethodName(current);
 
-            // Take the lexicographically "biggest" string
+            // Take the lexicographically "biggest" raw name
+            // If this is method isn't name-giving, no need to map it
             if (currentRawName.compareTo(rawName) > 0) {
-                rawName = currentRawName;
+                return null;
             }
         }
 
@@ -192,7 +200,7 @@ public class HashedNameProvider {
         // Get the mappings
         ClassMapping<?, ?> classMapping = mappings.getClassMapping(field.owner().name())
                 .orElseThrow(() -> new RuntimeException("Missing mapping for class " + field.owner().name()));
-        FieldMapping fieldMapping = classMapping.getFieldMapping(field.name())
+        FieldMapping fieldMapping = classMapping.getFieldMapping(FieldSignature.of(field.name(), field.descriptor()))
                 .orElseThrow(() -> new RuntimeException("Missing mapping for field " + field.name()));
 
         String className = getRawClassName(field.owner());
@@ -210,9 +218,9 @@ public class HashedNameProvider {
     }
 
     public String getFieldName(FieldInfo field) {
-        // Don't hash unobfuscated names
+        // No need for a mapping if the field isn't obfuscated
         if (!field.isObfuscated()) {
-            return field.name();
+            return null;
         }
 
         return "f_" + getHashedString(getRawFieldName(field));
@@ -223,9 +231,6 @@ public class HashedNameProvider {
         byte[] hash = digest.digest(string.getBytes());
         BigInteger bigInteger = new BigInteger(hash);
 
-        // bits/digit = log(26) / log(2) ~ 4.7
-        // bits/hash = 256
-        // digits/hash = floor(bits/hash / bits/digit) = floor(54.46) = 54
         StringBuilder builder = new StringBuilder();
         int digits = 8; // Max: 256 * log(2) / log(base)
         int base = 26;
