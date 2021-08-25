@@ -51,7 +51,7 @@ publishing {
         maven(MavenPublication) {
             groupId = 'org.quiltmc'
             artifactId = 'hashed-mojmap'
-            version = minecraftVersion
+            version = minecraftVersion + (ENV.SNAPSHOTS_URL ? "-SNAPSHOT" : "")
             artifacts = [mappingsJar]
         }
     }
@@ -65,6 +65,15 @@ publishing {
                 credentials {
                     username = ENV.MAVEN_USERNAME
                     password = ENV.MAVEN_PASSWORD
+                }
+            }
+        } else if (ENV.SNAPSHOTS_URL) {
+            maven {
+                url = ENV.SNAPSHOTS_URL
+
+                credentials {
+                    username = ENV.SNAPSHOTS_USERNAME
+                    password = ENV.SNAPSHOTS_PASSWORD
                 }
             }
         }

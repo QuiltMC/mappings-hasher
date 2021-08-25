@@ -41,25 +41,27 @@ public class MappingsHasher {
 
             if (classInfo.name().equals(classMapping.getFullDeobfuscatedName())) {
                 classInfo.dontObfuscate();
-            }
 
-            for (MethodInfo methodInfo : classInfo.methods()) {
-                MethodMapping methodMapping = classMapping.getMethodMapping(methodInfo.name(), methodInfo.descriptor())
-                        .orElseThrow(() -> new RuntimeException("Missing mapping for method " + methodInfo.name()));
+                for (MethodInfo methodInfo : classInfo.methods()) {
+                    MethodMapping methodMapping = classMapping.getMethodMapping(methodInfo.name(), methodInfo.descriptor())
+                            .orElseThrow(() -> new RuntimeException("Missing mapping for method " + methodInfo.name()));
 
-                if (methodInfo.name().equals(methodMapping.getDeobfuscatedName())) {
-                    methodInfo.dontObfuscate();
+                    if (methodInfo.name().equals(methodMapping.getDeobfuscatedName())) {
+                        methodInfo.dontObfuscate();
+                    }
+                }
+
+                for (FieldInfo fieldInfo : classInfo.fields()) {
+                    FieldMapping fieldMapping = classMapping.getFieldMapping(FieldSignature.of(fieldInfo.name(), fieldInfo.descriptor()))
+                            .orElseThrow(() -> new RuntimeException("Missing mapping for field " + fieldInfo.name()));
+
+                    if (fieldInfo.name().equals(fieldMapping.getDeobfuscatedName())) {
+                        fieldInfo.dontObfuscate();
+                    }
                 }
             }
 
-            for (FieldInfo fieldInfo : classInfo.fields()) {
-                FieldMapping fieldMapping = classMapping.getFieldMapping(FieldSignature.of(fieldInfo.name(), fieldInfo.descriptor()))
-                        .orElseThrow(() -> new RuntimeException("Missing mapping for field " + fieldInfo.name()));
-
-                if (fieldInfo.name().equals(fieldMapping.getDeobfuscatedName())) {
-                    fieldInfo.dontObfuscate();
-                }
-            }
+            classInfo.methods().stream().filter(methodInfo -> methodInfo.name().equals("values") || methodInfo.name().equals("valueOf")).forEach(MethodInfo::dontObfuscate);
         }
 
         // Create the mappings

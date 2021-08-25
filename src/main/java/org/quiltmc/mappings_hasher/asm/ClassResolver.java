@@ -1,7 +1,5 @@
 package org.quiltmc.mappings_hasher.asm;
 
-import org.objectweb.asm.*;
-
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -9,12 +7,19 @@ import java.util.Map;
 import java.util.Set;
 import java.util.jar.JarFile;
 
+import org.objectweb.asm.AnnotationVisitor;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.FieldVisitor;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
+
 public class ClassResolver {
     private final Map<String, ClassReader> classToReader = new HashMap<>();
     private final Map<String, Boolean> classToObfuscated = new HashMap<>();
     private final Map<String, ClassInfo> classInfoCache = new HashMap<>();
 
-    public ClassResolver() { }
+    public ClassResolver() {
+    }
 
     public Set<ClassInfo> extractClassInfo(JarFile jar) {
         addJar(jar, true);
@@ -42,8 +47,7 @@ public class ClassResolver {
                 try {
                     classToReader.put(className, new ClassReader(jar.getInputStream(entry)));
                     classToObfuscated.put(className, obfuscated);
-                }
-                catch (IOException exception) {
+                } catch (IOException exception) {
                     throw new RuntimeException(exception);
                 }
             }
@@ -60,8 +64,7 @@ public class ClassResolver {
             try {
                 // Try to load from class path (for Java Platform)
                 reader = new ClassReader(name);
-            }
-            catch (IOException exception) {
+            } catch (IOException exception) {
                 throw new RuntimeException("Class not found: " + name);
             }
         }
@@ -71,7 +74,7 @@ public class ClassResolver {
         if (!obfuscated) {
             visitor.dontObfuscate();
         }
-        reader.accept(visitor,ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+        reader.accept(visitor, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
         classInfoCache.put(name, visitor.getClassInfo());
         return visitor.getClassInfo();
     }
@@ -79,6 +82,7 @@ public class ClassResolver {
     private static class ClassVisitor extends org.objectweb.asm.ClassVisitor {
         private final ClassResolver resolver;
         private boolean dontObfuscate;
+        private boolean isEnum;
 
         private ClassInfo classInfo;
 
@@ -125,10 +129,10 @@ public class ClassResolver {
         public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
             FieldInfo fieldInfo = new FieldInfo(this.classInfo, name, descriptor);
             classInfo.fields().add(fieldInfo);
-
             if (this.dontObfuscate) {
                 fieldInfo.dontObfuscate();
             }
+
             return new FieldVisitor(this.api) {
                 @Override
                 public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
@@ -143,7 +147,7 @@ public class ClassResolver {
         public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
             MethodInfo methodInfo = new MethodInfo(this.classInfo, name, descriptor, access);
             this.classInfo.methods().add(methodInfo);
-            if(this.dontObfuscate) {
+            if (this.dontObfuscate) {
                 methodInfo.dontObfuscate();
             }
 
