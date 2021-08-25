@@ -184,8 +184,12 @@ public class HashedNameProvider {
             // Take the lexicographically "biggest" raw name
             // If this is method isn't name-giving, no need to map it
             if (currentRawName.compareTo(rawName) > 0) {
-                return null;
+                rawName = currentRawName;
             }
+        }
+
+        if (method.overrides().size() != 0) {
+            return null;
         }
 
         return "m_" + getHashedString(rawName);
