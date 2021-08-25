@@ -51,7 +51,7 @@ publishing {
         maven(MavenPublication) {
             groupId = 'org.quiltmc'
             artifactId = 'hashed-mojmap'
-            version = minecraftVersion + (ENV.SNAPSHOTS_URL ? "-SNAPSHOT" : "")
+            version = minecraftVersion + (System.getenv().SNAPSHOTS_URL ? "-SNAPSHOT" : "")
             artifacts = [mappingsJar]
         }
     }
