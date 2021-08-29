@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'application'
     id 'maven-publish'
+    id 'com.github.johnrengelman.shadow' version '7.0.0'
 }
 
 group 'org.quiltmc'
@@ -29,11 +30,17 @@ repositories {
     }
 }
 
+configurations {
+    implementation {
+        extendsFrom shadow
+    }
+}
+
 dependencies {
-    implementation 'org.quiltmc:quilt-json5:1.0.0'
-    implementation 'org.quiltmc:lorenz-tiny:3.0.0'
-    implementation 'org.cadixdev:lorenz-io-proguard:0.5.6'
-    implementation "org.ow2.asm:asm:9.1"
+    shadow 'org.quiltmc:quilt-json5:1.0.0'
+    shadow 'org.quiltmc:lorenz-tiny:3.0.0'
+    shadow 'org.cadixdev:lorenz-io-proguard:0.5.6'
+    shadow "org.ow2.asm:asm:9.1"
 }
 
 tasks.getByName("run").setArgsString(minecraftVersion)
@@ -46,13 +53,30 @@ task mappingsJar(type: Jar) {
     }
 }
 
+shadowJar {
+    archiveClassifier = null
+    configurations  = [project.configurations.shadow]
+    relocate "net.fabricmc", "org.quiltmc.mappings_hasher.fabricmc"
+    relocate "org.cadixdev", "org.quiltmc.mappings_hasher.cadixdev"
+    relocate "org.objectweb.asm", "org.quiltmc.mappings_hasher.asm"
+    relocate "me.jamiemansfield", "org.quiltmc.mappings_hasher.jamiemansfield"
+}
+
 publishing {
     publications {
-        maven(MavenPublication) {
+        mavenHashed(MavenPublication) {
             groupId = 'org.quiltmc'
             artifactId = 'hashed-mojmap'
             version = minecraftVersion + (System.getenv().SNAPSHOTS_URL ? "-SNAPSHOT" : "")
             artifacts = [mappingsJar]
+        }
+
+
+        mavenHasher(MavenPublication) {
+            groupId = 'org.quiltmc'
+            artifactId = 'mappings-hasher'
+            version = version
+            artifacts = [shadowJar]
         }
     }
     repositories {

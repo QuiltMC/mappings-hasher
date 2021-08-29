@@ -1,7 +1,9 @@
 package org.quiltmc.mappings_hasher;
 
+import java.util.List;
 import java.util.Set;
 import java.util.jar.JarFile;
+import java.util.stream.Collectors;
 
 import org.cadixdev.bombe.type.signature.FieldSignature;
 import org.cadixdev.lorenz.MappingSet;
@@ -30,6 +32,9 @@ public class MappingsHasher {
     public MappingSet generate(JarFile jar) {
         // Extract class information (for method overrides mostly)
         Set<ClassInfo> classes = classResolver.extractClassInfo(jar);
+
+        // Remove classes that are not in the original mappings set - for Linkie. This did not affect any generation on 1.17.1 - OroArmor
+        classes.removeIf(info -> !original.getClassMapping(info.name()).isPresent());
 
         // The class generating hashed names from class information and the original mappings
         HashedNameProvider nameProvider = new HashedNameProvider(classes, original, defaultPackage);
