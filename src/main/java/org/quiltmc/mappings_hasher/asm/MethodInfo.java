@@ -111,6 +111,11 @@ public class MethodInfo {
                         else {
                             overrides.add(superMethod);
                         }
+
+                        if (!superMethod.isObfuscated()) {
+                            this.dontObfuscate();
+                        }
+
                         continue;
                     }
                 }

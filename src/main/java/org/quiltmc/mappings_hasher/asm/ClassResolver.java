@@ -33,6 +33,39 @@ public class ClassResolver {
             }
         });
 
+        for (ClassInfo classInfo : classes) {
+            if (classInfo.superClasses().size() < 2) {
+                continue;
+            }
+            // Recursively check super classes to ensure no methods on an interface are implemented on a super class
+            Set<ClassInfo> superClasses = new HashSet<>(classInfo.superClasses());
+            Set<ClassInfo> addedSuperClasses = new HashSet<>();
+            while (!superClasses.isEmpty()) {
+                addedSuperClasses.addAll(superClasses);
+                HashSet<ClassInfo> temp = new HashSet<>(superClasses);
+                superClasses.clear();
+                temp.forEach(superClass -> superClasses.addAll(superClass.superClasses()));
+            }
+
+            for (ClassInfo superClass : addedSuperClasses) {
+                for (MethodInfo methodInfo : superClass.methods()) {
+                    for (ClassInfo otherClass : addedSuperClasses) {
+                        if (otherClass == superClass) {
+                            continue;
+                        }
+
+                        for (MethodInfo otherMethod : otherClass.methods()) {
+                            if (otherMethod.name().equals(methodInfo.name()) && otherMethod.descriptor().equals(methodInfo.descriptor())) {
+                                if (!otherMethod.isObfuscated()) {
+                                    methodInfo.dontObfuscate();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         return classes;
     }
 
@@ -82,7 +115,6 @@ public class ClassResolver {
     private static class ClassVisitor extends org.objectweb.asm.ClassVisitor {
         private final ClassResolver resolver;
         private boolean dontObfuscate;
-        private boolean isEnum;
 
         private ClassInfo classInfo;
 
