@@ -146,17 +146,12 @@ public class HashedNameProvider {
         MethodMapping methodMapping = classMapping.getMethodMapping(method.name(), method.descriptor())
                 .orElseThrow(() -> new RuntimeException("Missing mapping for method " + method.getFullName()));
 
-        String className = getRawClassName(method.owner());
-        boolean isMethodNameUnique = classMapping.getMethodMappings().stream()
-                .filter(m -> m.getDeobfuscatedName().equals(methodMapping.getDeobfuscatedName()))
-                .count() == 1;
         String methodName = methodMapping.getDeobfuscatedName();
-        String methodDescriptor = isMethodNameUnique ? "" : methodMapping.getDeobfuscatedDescriptor();
 
         // "m;" prefix: methods with omitted descriptors need to be different to fields
         // Note that ";" and "." are illegal in jvm identifiers, so this should be safe
-        // "m;<package>/<className>.<methodName>;<methodDescriptor>"
-        return "m;" + className + "." + methodName + ";" + methodDescriptor;
+        // "m;<methodName>"
+        return "m;" + methodName;
     }
 
     public String getMethodName(MethodInfo method) {
@@ -203,18 +198,11 @@ public class HashedNameProvider {
         FieldMapping fieldMapping = classMapping.getFieldMapping(FieldSignature.of(field.name(), field.descriptor()))
                 .orElseThrow(() -> new RuntimeException("Missing mapping for field " + field.name()));
 
-        String className = getRawClassName(field.owner());
         String fieldName = fieldMapping.getDeobfuscatedName();
-        // While java doesn't allow it, the jvm allows fields that only differ in their descriptor.
-        boolean isFieldNameUnique = classMapping.getFieldMappings().stream()
-                .filter(f -> f.getDeobfuscatedName().equals(fieldMapping.getDeobfuscatedName()))
-                .count() == 1;
-        String fieldDescriptor = isFieldNameUnique ? "" : fieldMapping.getType().get().toString();
-
         // "f;" prefix: fields need to be different to methods with omitted descriptors
         // Note that ";" and "." are illegal in jvm identifiers, so this should be safe
-        // "f;<className>.<fieldName>;<fieldDescriptor>"
-        return "f;" + className + "." + fieldName + ";" + fieldDescriptor;
+        // "f;<fieldName>"
+        return "f;" + fieldName;
     }
 
     public String getFieldName(FieldInfo field) {
