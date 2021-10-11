@@ -66,17 +66,18 @@ publishing {
     publications {
         mavenHashed(MavenPublication) {
             groupId = 'org.quiltmc'
-            artifactId = 'hashed-mojmap'
+            artifactId = 'hashed'
             version = minecraftVersion + (System.getenv().SNAPSHOTS_URL ? "-SNAPSHOT" : "")
-            artifacts = [mappingsJar]
+            artifacts = [mappingsJar, file("mappings/hashed-${minecraftVersion}.tiny")]
         }
 
-
-        mavenHasher(MavenPublication) {
-            groupId = 'org.quiltmc'
-            artifactId = 'mappings-hasher'
-            version = version
-            artifacts = [shadowJar]
+        if (project.shouldPublishHasher || ENV.SNAPSHOTS_URL) {
+            mavenHasher(MavenPublication) {
+                groupId = 'org.quiltmc'
+                artifactId = 'mappings-hasher'
+                version = version
+                artifacts = [shadowJar]
+            }
         }
     }
     repositories {
