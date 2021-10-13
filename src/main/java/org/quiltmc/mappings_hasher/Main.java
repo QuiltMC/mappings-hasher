@@ -4,7 +4,6 @@ import net.fabricmc.lorenztiny.TinyMappingsWriter;
 import org.cadixdev.lorenz.MappingSet;
 import org.cadixdev.lorenz.io.TextMappingsReader;
 import org.cadixdev.lorenz.io.proguard.ProGuardReader;
-import org.quiltmc.mappings_hasher.manifest.LibraryEntry;
 import org.quiltmc.mappings_hasher.manifest.VersionEntry;
 import org.quiltmc.mappings_hasher.manifest.VersionManifest;
 import org.quiltmc.json5.JsonReader;
@@ -14,9 +13,6 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.jar.JarFile;
-import java.util.jar.JarOutputStream;
-import java.util.zip.ZipEntry;
 
 public class Main {
     public static void main(String[] args) throws IOException {
@@ -51,17 +47,8 @@ public class Main {
         MappingSet obf_to_mojmap = mappingsReader.read().reverse();
         MappingsHasher mappingsHasher = new MappingsHasher(obf_to_mojmap, "net/minecraft/unmapped");
 
-        System.out.println("Loading libs...");
-        for (LibraryEntry lib : version.libraries()) {
-            JarFile libJar = new JarFile(lib.getOrDownload());
-            mappingsHasher.addLibrary(libJar);
-        }
-
-        System.out.println("Loading client jar...");
-        JarFile clientJar = new JarFile(version.downloads().get("client").getOrDownload());
-
         System.out.println("Generating mappings...");
-        MappingSet obf_to_hashed = mappingsHasher.generate(clientJar);
+        MappingSet obf_to_hashed = mappingsHasher.generate();
 
         System.out.println("Writing mappings to file...");
         Path outPath = Paths.get("mappings", "hashed-" + version.id() + ".tiny");

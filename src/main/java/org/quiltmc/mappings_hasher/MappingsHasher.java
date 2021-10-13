@@ -1,111 +1,108 @@
 package org.quiltmc.mappings_hasher;
 
-import java.util.List;
-import java.util.Set;
-import java.util.jar.JarFile;
-import java.util.stream.Collectors;
+import java.math.BigInteger;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Collection;
+import java.util.HashSet;
 
-import org.cadixdev.bombe.type.signature.FieldSignature;
 import org.cadixdev.lorenz.MappingSet;
 import org.cadixdev.lorenz.model.ClassMapping;
-import org.cadixdev.lorenz.model.FieldMapping;
-import org.cadixdev.lorenz.model.MethodMapping;
-import org.quiltmc.mappings_hasher.asm.ClassInfo;
-import org.quiltmc.mappings_hasher.asm.ClassResolver;
-import org.quiltmc.mappings_hasher.asm.FieldInfo;
-import org.quiltmc.mappings_hasher.asm.MethodInfo;
+import org.cadixdev.lorenz.model.InnerClassMapping;
+import org.cadixdev.lorenz.model.Mapping;
+import org.cadixdev.lorenz.model.TopLevelClassMapping;
 
 public class MappingsHasher {
     private final MappingSet original;
     private final String defaultPackage;
-    private final ClassResolver classResolver = new ClassResolver();
+    private final MessageDigest digest;
 
     public MappingsHasher(MappingSet original, String defaultPackage) {
         this.original = original;
         this.defaultPackage = defaultPackage;
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    public void addLibrary(JarFile jar) {
-        classResolver.addLibrary(jar);
+    public MappingSet generate() {
+        MappingSet mappings = MappingSet.create();
+
+        Collection<ClassMapping<?, ?>> incompleteMappings = new HashSet<>(original.getTopLevelClassMappings());
+        while (!incompleteMappings.isEmpty()) {
+            Collection<ClassMapping<?, ?>> newMappings = new HashSet<>();
+            for (ClassMapping<?, ?> oldMapping : incompleteMappings) {
+                newMappings.addAll(oldMapping.getInnerClassMappings());
+
+                ClassMapping<?, ?> newMapping;
+
+                if (oldMapping instanceof TopLevelClassMapping) {
+                     newMapping = mappings.createTopLevelClassMapping(oldMapping.getObfuscatedName(), hasMatchingName(oldMapping) ? oldMapping.getFullDeobfuscatedName() : defaultPackage + "/C_" + getHashedString(oldMapping.getDeobfuscatedName()));
+                } else {
+                    InnerClassMapping innerClassMapping = (InnerClassMapping) oldMapping;
+                    String obfuscatedName = innerClassMapping.getObfuscatedName();
+                    String deobfuscatedName = innerClassMapping.getDeobfuscatedName();
+                    while (innerClassMapping.getParent() instanceof InnerClassMapping) {
+                        innerClassMapping = ((InnerClassMapping) innerClassMapping.getParent());
+                        obfuscatedName = innerClassMapping.getObfuscatedName() + "$" + obfuscatedName;
+                        deobfuscatedName = innerClassMapping.getDeobfuscatedName() + "$" + deobfuscatedName;
+                    }
+
+                    String fullObfuscatedName = innerClassMapping.getParent().getFullObfuscatedName() + "$" + obfuscatedName;
+                    String fullDeobfuscatedName = innerClassMapping.getParent().getFullDeobfuscatedName() + "$" + deobfuscatedName;
+
+                    if (fullObfuscatedName.equals(fullDeobfuscatedName)) {
+                        continue;
+                    }
+
+                    newMapping = mappings.getOrCreateClassMapping(fullObfuscatedName);
+                    if (newMapping instanceof TopLevelClassMapping) {
+                        System.err.println("BAD");
+                    }
+                    newMapping.setDeobfuscatedName("C_" + getHashedString(deobfuscatedName));
+                }
+
+                oldMapping.getMethodMappings().forEach(methodMapping -> {
+                    if (hasMatchingName(methodMapping)) {
+                        return;
+                    }
+
+                    newMapping.getOrCreateMethodMapping(methodMapping.getObfuscatedName(), methodMapping.getObfuscatedDescriptor()).setDeobfuscatedName("m_" + getHashedString(methodMapping.getDeobfuscatedName()));
+                });
+                oldMapping.getFieldMappings().forEach(fieldMapping -> {
+                    if (hasMatchingName(fieldMapping)) {
+                        return;
+                    }
+
+                    newMapping.getOrCreateFieldMapping(fieldMapping.getObfuscatedName(), fieldMapping.getType().get()).setDeobfuscatedName("f_" + getHashedString(fieldMapping.getDeobfuscatedName()));
+                });
+            }
+            incompleteMappings = newMappings;
+        }
+        return mappings;
     }
 
-    public MappingSet generate(JarFile jar) {
-        // Extract class information (for method overrides mostly)
-        Set<ClassInfo> classes = classResolver.extractClassInfo(jar);
+    private String getHashedString(String string) {
+        // Hash the string and interpret the result as a big integer
+        byte[] hash = digest.digest(string.getBytes());
+        BigInteger bigInteger = new BigInteger(hash);
 
-        // Remove classes that are not in the original mappings set - for Linkie. This did not affect any generation on 1.17.1 - OroArmor
-        classes.removeIf(info -> !original.getClassMapping(info.name()).isPresent());
+        StringBuilder builder = new StringBuilder();
+        int digits = 8; // Max: 256 * log(2) / log(base)
+        int base = 26;
+        for (int i = 0; i < digits; i++) {
+            int digit = bigInteger.mod(BigInteger.valueOf(base)).intValue();
+            bigInteger = bigInteger.divide(BigInteger.valueOf(base));
 
-        // The class generating hashed names from class information and the original mappings
-        HashedNameProvider nameProvider = new HashedNameProvider(classes, original, defaultPackage);
-
-        // Detect unobfuscated methods
-        for (ClassInfo classInfo : classes) {
-            ClassMapping<?, ?> classMapping = original.getClassMapping(classInfo.name())
-                    .orElseThrow(() -> new RuntimeException("Missing mapping for class " + classInfo.name()));
-
-            if (classInfo.name().equals(classMapping.getFullDeobfuscatedName())) {
-                classInfo.dontObfuscate();
-
-                for (MethodInfo methodInfo : classInfo.methods()) {
-                    MethodMapping methodMapping = classMapping.getMethodMapping(methodInfo.name(), methodInfo.descriptor())
-                            .orElseThrow(() -> new RuntimeException("Missing mapping for method " + methodInfo.name()));
-
-                    if (methodInfo.name().equals(methodMapping.getDeobfuscatedName())) {
-                        methodInfo.dontObfuscate();
-                    }
-                }
-
-                for (FieldInfo fieldInfo : classInfo.fields()) {
-                    FieldMapping fieldMapping = classMapping.getFieldMapping(FieldSignature.of(fieldInfo.name(), fieldInfo.descriptor()))
-                            .orElseThrow(() -> new RuntimeException("Missing mapping for field " + fieldInfo.name()));
-
-                    if (fieldInfo.name().equals(fieldMapping.getDeobfuscatedName())) {
-                        fieldInfo.dontObfuscate();
-                    }
-                }
-            }
-
-            classInfo.methods().stream().filter(methodInfo -> methodInfo.name().equals("values") || methodInfo.name().equals("valueOf")).forEach(MethodInfo::dontObfuscate);
+            builder.append((char) ('a' + digit));
         }
 
-        // Create the mappings
-        MappingSet hashed = MappingSet.create();
-        for (ClassInfo classInfo : classes) {
-            // Create class mapping
-            ClassMapping<?, ?> classHashed = hashed.getOrCreateClassMapping(classInfo.name());
+        return builder.toString();
+    }
 
-            // If null, assume no mapping is required
-            String className = nameProvider.getClassName(classInfo);
-            if (className != null) {
-                classHashed.setDeobfuscatedName(nameProvider.getClassName(classInfo));
-            }
-
-            for (MethodInfo methodInfo : classInfo.methods()) {
-                // If null, assume no mapping is required
-                String methodName = nameProvider.getMethodName(methodInfo);
-                if (methodName == null) {
-                    continue;
-                }
-
-                // Create method mapping
-                MethodMapping methodHashed = classHashed.createMethodMapping(methodInfo.name(), methodInfo.descriptor());
-                methodHashed.setDeobfuscatedName(methodName);
-            }
-
-            for (FieldInfo fieldInfo : classInfo.fields()) {
-                // If null, assume no mapping is required
-                String fieldName = nameProvider.getFieldName(fieldInfo);
-                if (fieldName == null) {
-                    continue;
-                }
-
-                // Create field mapping
-                FieldMapping fieldHashed = classHashed.createFieldMapping(FieldSignature.of(fieldInfo.name(), fieldInfo.descriptor()));
-                fieldHashed.setDeobfuscatedName(fieldName);
-            }
-        }
-
-        return hashed;
+    private boolean hasMatchingName(Mapping<?,?> mapping) {
+        return mapping.getObfuscatedName().length() > 1 && mapping.getDeobfuscatedName().equals(mapping.getObfuscatedName());
     }
 }
