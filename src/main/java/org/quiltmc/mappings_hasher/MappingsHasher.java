@@ -58,9 +58,6 @@ public class MappingsHasher {
                     }
 
                     newMapping = mappings.getOrCreateClassMapping(fullObfuscatedName);
-                    if (newMapping instanceof TopLevelClassMapping) {
-                        System.err.println("BAD");
-                    }
                     newMapping.setDeobfuscatedName("C_" + getHashedString(deobfuscatedName));
                 }
 
