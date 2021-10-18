@@ -3,15 +3,12 @@ package org.quiltmc.mappings_hasher;
 import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.cadixdev.lorenz.MappingSet;
-import org.cadixdev.lorenz.model.ClassMapping;
-import org.cadixdev.lorenz.model.InnerClassMapping;
-import org.cadixdev.lorenz.model.Mapping;
-import org.cadixdev.lorenz.model.TopLevelClassMapping;
+import org.cadixdev.lorenz.model.*;
 
 public class MappingsHasher {
     private final MappingSet original;
@@ -28,82 +25,80 @@ public class MappingsHasher {
         }
     }
 
+    private void hashClassMapping(ClassMapping<?, ?> classMapping) {
+        // Recurse to inner classes
+        for (InnerClassMapping innerClassMapping : classMapping.getInnerClassMappings()) {
+            hashClassMapping(innerClassMapping);
+        }
+
+        // Hash methods
+        for (MethodMapping methodMapping : classMapping.getMethodMappings()) {
+            if (isObfuscated(methodMapping)) {
+                methodMapping.setDeobfuscatedName("m_" + getHashedString(methodMapping.getSimpleDeobfuscatedName()));
+            }
+        }
+
+        // Hash fields
+        for (FieldMapping fieldMapping : classMapping.getFieldMappings()) {
+            if (isObfuscated(fieldMapping)) {
+                fieldMapping.setDeobfuscatedName("f_" + getHashedString(fieldMapping.getSimpleDeobfuscatedName()));
+            }
+        }
+
+        // Keep non-obfuscated class names as-is
+        if (!isObfuscated(classMapping)) {
+            return;
+        }
+
+        if (classMapping instanceof InnerClassMapping) {
+            // Replace inner class names with their hashed name
+            classMapping.setDeobfuscatedName("C_" + getHashedString(classMapping.getDeobfuscatedName()));
+        }
+        else {
+            // Replace top level classes with their hashed full name
+            classMapping.setDeobfuscatedName(defaultPackage + "/C_" + getHashedString(classMapping.getFullDeobfuscatedName()));
+        }
+    }
+
     public MappingSet generate() {
-        MappingSet mappings = MappingSet.create();
+        // Create copy of original set
+        MappingSet newMappings = original.copy();
 
-        // Mappings that need to be hashed
-        Collection<ClassMapping<?, ?>> incompleteMappings = new HashSet<>(original.getTopLevelClassMappings());
+        // Extract duplicate simple names
+        Set<String> simpleNames = new HashSet<>();
+        Set<String> nonUniqueNames = newMappings.getTopLevelClassMappings().stream()
+                .map(ClassMapping::getSimpleDeobfuscatedName).filter(name -> !simpleNames.add(name)).collect(Collectors.toSet());
 
-        // Names that are doubled. This only applies to outer classes, and is when net/minecraft/.../Name exists in two places
-        Set<String> doubledNames = new HashSet<>();
+        // Strip package for unique simple names
+        for (TopLevelClassMapping classMapping : newMappings.getTopLevelClassMappings()) {
+            //Skip non-obfuscated mappings
+            if (!isObfuscated(classMapping)) {
+                continue;
+            }
 
-        {
-            Set<String> seenNames = new HashSet<>();
-            for (ClassMapping<?, ?> classMapping : incompleteMappings) {
-                if (seenNames.contains(classMapping.getSimpleDeobfuscatedName())) {
-                    doubledNames.add(classMapping.getSimpleDeobfuscatedName());
-                } else {
-                    seenNames.add(classMapping.getSimpleDeobfuscatedName());
-                }
+            if (!nonUniqueNames.contains(classMapping.getSimpleDeobfuscatedName())) {
+                classMapping.setDeobfuscatedName(classMapping.getSimpleDeobfuscatedName());
             }
         }
 
-        while (!incompleteMappings.isEmpty()) {
-            Collection<ClassMapping<?, ?>> newMappings = new HashSet<>();
-            for (ClassMapping<?, ?> oldMapping : incompleteMappings) {
-                // Add all the inner classes to the next round of hashing
-                newMappings.addAll(oldMapping.getInnerClassMappings());
-
-                // The new class mapping
-                ClassMapping<?, ?> newMapping;
-
-                if (oldMapping instanceof TopLevelClassMapping) {
-                    String hashedName;
-
-                    // Get the hashed name for the class. If it is the same in obfuscated and named, dont hash. Otherwise get the name and check for uniqueness
-                    if (hasMatchingName(oldMapping)) {
-                        hashedName = oldMapping.getFullDeobfuscatedName();
-                    } else {
-                        hashedName = defaultPackage + "/C_";
-                        if (doubledNames.contains(oldMapping.getSimpleDeobfuscatedName())) {
-                            hashedName += getHashedString(oldMapping.getFullDeobfuscatedName());
-                        } else {
-                            hashedName += getHashedString(oldMapping.getSimpleDeobfuscatedName());
-                        }
-                    }
-
-                    newMapping = mappings.createTopLevelClassMapping(oldMapping.getObfuscatedName(), hashedName);
-                } else {
-                    String name = oldMapping.getDeobfuscatedName();
-
-                    if (oldMapping.getFullDeobfuscatedName().equals(oldMapping.getFullObfuscatedName())) {
-                        continue;
-                    }
-
-                    newMapping = mappings.getOrCreateClassMapping(oldMapping.getFullObfuscatedName());
-                    newMapping.setDeobfuscatedName("C_" + getHashedString(name));
-                }
-
-                // Hash the method and field names
-                oldMapping.getMethodMappings().forEach(methodMapping -> {
-                    if (hasMatchingName(methodMapping)) {
-                        return;
-                    }
-
-                    newMapping.getOrCreateMethodMapping(methodMapping.getObfuscatedName(), methodMapping.getObfuscatedDescriptor()).setDeobfuscatedName("m_" + getHashedString(methodMapping.getDeobfuscatedName()));
-                });
-
-                oldMapping.getFieldMappings().forEach(fieldMapping -> {
-                    if (hasMatchingName(fieldMapping)) {
-                        return;
-                    }
-
-                    newMapping.getOrCreateFieldMapping(fieldMapping.getObfuscatedName(), fieldMapping.getType().get()).setDeobfuscatedName("f_" + getHashedString(fieldMapping.getDeobfuscatedName()));
-                });
-            }
-            incompleteMappings = newMappings;
+        // Hash class mappings
+        for (TopLevelClassMapping classMapping : newMappings.getTopLevelClassMappings()) {
+            hashClassMapping(classMapping);
         }
-        return mappings;
+
+        return newMappings;
+    }
+
+    private boolean isObfuscated(Mapping<?, ?> mapping) {
+        // Names with a single character are assumed to be obfuscated
+        // Reasoning: A field with name "b" could happen to be obfuscated to "b"
+        // Yes, that actually happened
+        if (mapping.getDeobfuscatedName().length() == 1) {
+            return true;
+        }
+
+        // If the mapping is not an identity mapping, the name is obfuscated
+        return !mapping.getDeobfuscatedName().equals(mapping.getObfuscatedName());
     }
 
     private String getHashedString(String string) {
@@ -122,10 +117,5 @@ public class MappingsHasher {
         }
 
         return builder.toString();
-    }
-
-    private boolean hasMatchingName(Mapping<?, ?> mapping) {
-        // Names with one character cannot be trusted as being deobfuscated
-        return mapping.getObfuscatedName().length() > 1 && mapping.getDeobfuscatedName().equals(mapping.getObfuscatedName());
     }
 }
