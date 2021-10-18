@@ -5,6 +5,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Set;
 
 import org.cadixdev.lorenz.MappingSet;
 import org.cadixdev.lorenz.model.ClassMapping;
@@ -31,6 +32,19 @@ public class MappingsHasher {
         MappingSet mappings = MappingSet.create();
 
         Collection<ClassMapping<?, ?>> incompleteMappings = new HashSet<>(original.getTopLevelClassMappings());
+        Set<String> doubledNames = new HashSet<>();
+
+        {
+            Set<String> seenNames = new HashSet<>();
+            for (ClassMapping<?, ?> classMapping : incompleteMappings) {
+                if (seenNames.contains(classMapping.getSimpleDeobfuscatedName())) {
+                    doubledNames.add(classMapping.getSimpleDeobfuscatedName());
+                } else {
+                    seenNames.add(classMapping.getSimpleDeobfuscatedName());
+                }
+            }
+        }
+
         while (!incompleteMappings.isEmpty()) {
             Collection<ClassMapping<?, ?>> newMappings = new HashSet<>();
             for (ClassMapping<?, ?> oldMapping : incompleteMappings) {
@@ -39,26 +53,30 @@ public class MappingsHasher {
                 ClassMapping<?, ?> newMapping;
 
                 if (oldMapping instanceof TopLevelClassMapping) {
-                     newMapping = mappings.createTopLevelClassMapping(oldMapping.getObfuscatedName(), hasMatchingName(oldMapping) ? oldMapping.getFullDeobfuscatedName() : defaultPackage + "/C_" + getHashedString(oldMapping.getDeobfuscatedName()));
-                } else {
-                    InnerClassMapping innerClassMapping = (InnerClassMapping) oldMapping;
-                    String obfuscatedName = innerClassMapping.getObfuscatedName();
-                    String deobfuscatedName = innerClassMapping.getDeobfuscatedName();
-                    while (innerClassMapping.getParent() instanceof InnerClassMapping) {
-                        innerClassMapping = ((InnerClassMapping) innerClassMapping.getParent());
-                        obfuscatedName = innerClassMapping.getObfuscatedName() + "$" + obfuscatedName;
-                        deobfuscatedName = innerClassMapping.getDeobfuscatedName() + "$" + deobfuscatedName;
+                    String hashedName;
+
+                    if (hasMatchingName(oldMapping)) {
+                        hashedName = oldMapping.getFullDeobfuscatedName();
+                    } else {
+                        hashedName = defaultPackage + "/C_";
+                        if (doubledNames.contains(oldMapping.getSimpleDeobfuscatedName())) {
+                            hashedName += getHashedString(oldMapping.getFullDeobfuscatedName());
+                        } else {
+                            hashedName += getHashedString(oldMapping.getSimpleDeobfuscatedName());
+                        }
                     }
 
-                    String fullObfuscatedName = innerClassMapping.getParent().getFullObfuscatedName() + "$" + obfuscatedName;
-                    String fullDeobfuscatedName = innerClassMapping.getParent().getFullDeobfuscatedName() + "$" + deobfuscatedName;
+                    newMapping = mappings.createTopLevelClassMapping(oldMapping.getObfuscatedName(), hashedName);
+                } else {
+                    InnerClassMapping innerClassMapping = (InnerClassMapping) oldMapping;
+                    String name = innerClassMapping.getDeobfuscatedName();
 
-                    if (fullObfuscatedName.equals(fullDeobfuscatedName)) {
+                    if (innerClassMapping.getFullDeobfuscatedName().equals(innerClassMapping.getFullObfuscatedName())) {
                         continue;
                     }
 
-                    newMapping = mappings.getOrCreateClassMapping(fullObfuscatedName);
-                    newMapping.setDeobfuscatedName("C_" + getHashedString(deobfuscatedName));
+                    newMapping = mappings.getOrCreateClassMapping(innerClassMapping.getFullObfuscatedName());
+                    newMapping.setDeobfuscatedName("C_" + getHashedString(name));
                 }
 
                 oldMapping.getMethodMappings().forEach(methodMapping -> {
@@ -99,7 +117,7 @@ public class MappingsHasher {
         return builder.toString();
     }
 
-    private boolean hasMatchingName(Mapping<?,?> mapping) {
+    private boolean hasMatchingName(Mapping<?, ?> mapping) {
         return mapping.getObfuscatedName().length() > 1 && mapping.getDeobfuscatedName().equals(mapping.getObfuscatedName());
     }
 }
