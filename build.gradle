@@ -18,6 +18,10 @@ tasks.withType(JavaCompile).configureEach {
     }
 }
 
+compileJava {
+    options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
+}
+
 application {
     mainClass = 'org.quiltmc.mappings_hasher.Main'
 }
@@ -37,10 +41,11 @@ configurations {
 }
 
 dependencies {
-    shadow 'org.quiltmc:quilt-json5:1.0.0'
     shadow 'org.quiltmc:lorenz-tiny:3.0.0'
-    shadow 'org.cadixdev:lorenz-io-proguard:0.5.6'
-    shadow "org.ow2.asm:asm:9.1"
+    shadow 'org.cadixdev:lorenz-io-proguard:0.5.7'
+
+    shadow "info.picocli:picocli:4.6.1"
+    annotationProcessor "info.picocli:picocli-codegen:4.6.1"
 }
 
 tasks.getByName("run").setArgsString(minecraftVersion)
@@ -58,8 +63,8 @@ shadowJar {
     configurations  = [project.configurations.shadow]
     relocate "net.fabricmc", "org.quiltmc.mappings_hasher.fabricmc"
     relocate "org.cadixdev", "org.quiltmc.mappings_hasher.cadixdev"
-    relocate "org.objectweb.asm", "org.quiltmc.mappings_hasher.asm"
     relocate "me.jamiemansfield", "org.quiltmc.mappings_hasher.jamiemansfield"
+    relocate "info.picocli", "org.quiltmc.mappings_hasher.info.picocli"
 }
 
 publishing {

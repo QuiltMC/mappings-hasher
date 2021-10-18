@@ -4,62 +4,51 @@ import net.fabricmc.lorenztiny.TinyMappingsWriter;
 import org.cadixdev.lorenz.MappingSet;
 import org.cadixdev.lorenz.io.TextMappingsReader;
 import org.cadixdev.lorenz.io.proguard.ProGuardReader;
-import org.quiltmc.mappings_hasher.manifest.VersionEntry;
-import org.quiltmc.mappings_hasher.manifest.VersionManifest;
-import org.quiltmc.json5.JsonReader;
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 
 import java.io.*;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.util.concurrent.Callable;
 
-public class Main {
-    public static void main(String[] args) throws IOException {
-        if (args.length != 1) {
-            System.out.println("Usage: <command> <version>");
-            return;
+@Command(name = "mappings-hasher", mixinStandardHelpOptions = true)
+public class Main implements Callable<Integer> {
+    @Parameters(description = "URL pointing to the input mappings.")
+    URL input;
+
+    @Parameters(description = "The name of the generated mappings.")
+    Path output;
+
+    @Override
+    public Integer call() {
+        try {
+            InputStream mappingsStream = input.openConnection().getInputStream();
+            TextMappingsReader mappingsReader = new ProGuardReader(new InputStreamReader(mappingsStream));
+            MappingsHasher mappingsHasher = new MappingsHasher(mappingsReader.read().reverse(), "net/minecraft/unmapped");
+
+            Files.createDirectories(output.getParent());
+            Files.deleteIfExists(output);
+            Files.createFile(output);
+
+            MappingSet result = mappingsHasher.generate();
+            BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(output)));
+            TinyMappingsWriter mappingsWriter = new TinyMappingsWriter(writer, "official", "hashed");
+            mappingsWriter.write(result);
+            writer.flush();
+            writer.close();
+        }
+        catch (IOException e){
+            System.err.println("IO error: " + e);
+            return 1;
         }
 
-        System.out.println("Reading version manifest...");
-        URL manifestUrl = new URL("https://launchermeta.mojang.com/mc/game/version_manifest_v2.json");
-        InputStreamReader manifestReader = new InputStreamReader(manifestUrl.openConnection().getInputStream());
-        JsonReader manifestJson = JsonReader.json(new BufferedReader(manifestReader));
-        VersionManifest manifest = VersionManifest.fromJson(manifestJson);
+        return 0;
+    }
 
-        System.out.println("Reading version...");
-        VersionEntry version = manifest.versions().get(args[0]);
-        if (version == null) {
-            System.out.println("Unknown version: " + args[0]);
-            return;
-        }
-
-        version.resolve();
-        if (!version.downloads().containsKey("client_mappings")) {
-            System.out.println("There exist no Mojang provided mappings for this version");
-            return;
-        }
-
-        System.out.println("Loading Mojang mappings...");
-        File mojmapFile = version.downloads().get("client_mappings").getOrDownload();
-        InputStream mojmapStream = Files.newInputStream(mojmapFile.toPath());
-        TextMappingsReader mappingsReader = new ProGuardReader(new InputStreamReader(mojmapStream));
-        MappingSet obf_to_mojmap = mappingsReader.read().reverse();
-        MappingsHasher mappingsHasher = new MappingsHasher(obf_to_mojmap, "net/minecraft/unmapped");
-
-        System.out.println("Generating mappings...");
-        MappingSet obf_to_hashed = mappingsHasher.generate();
-
-        System.out.println("Writing mappings to file...");
-        Path outPath = Paths.get("mappings", "hashed-" + version.id() + ".tiny");
-        Files.createDirectories(outPath.getParent());
-        Files.deleteIfExists(outPath);
-        Files.createFile(outPath);
-
-        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(outPath)));
-        TinyMappingsWriter mappingsWriter = new TinyMappingsWriter(writer, "official", "hashed");
-        mappingsWriter.write(obf_to_hashed);
-        writer.flush();
-        writer.close();
+    public static void main(String[] args) {
+        System.exit(new CommandLine(new Main()).execute(args));
     }
 }
