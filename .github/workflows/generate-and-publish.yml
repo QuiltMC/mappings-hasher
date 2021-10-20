@@ -5,6 +5,12 @@ on:
       version:
         description: "Minecraft version from the version manifest"
         required: true
+      mappings:
+        description: "URL to the client mappings file from the version manifest"
+        required: true
+      extra_args:
+        description: "Extra arguments to gradle"
+        required: false
 
 jobs:
   generate-and-publish:
@@ -25,7 +31,7 @@ jobs:
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@v1
       - name: Generate and publish mappings
-        run: ./gradlew publish -PminecraftVersion="${{ github.event.inputs.version }}" --stacktrace
+        run: ./gradlew publish -PminecraftVersion="${{ github.event.inputs.version }}" -PmappingsUrl="${{ github.event.inputs.mappings }}" ${{ github.event.inputs.extra_args }} --stacktrace
         env:
           MAVEN_URL: ${{ secrets.MAVEN_URL }}
           MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}

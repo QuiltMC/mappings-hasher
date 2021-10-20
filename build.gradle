@@ -6,7 +6,7 @@ plugins {
 }
 
 group 'org.quiltmc'
-version '1.0-SNAPSHOT'
+version '1.0.0'
 
 // Target JDK 8
 tasks.withType(JavaCompile).configureEach {
@@ -48,7 +48,7 @@ dependencies {
     annotationProcessor "info.picocli:picocli-codegen:4.6.1"
 }
 
-tasks.getByName("run").setArgsString(minecraftVersion)
+tasks.getByName("run").args(mappingsUrl, java.nio.file.Path.of("./mappings/hashed-${minecraftVersion}.tiny"))
 
 task mappingsJar(type: Jar) {
     dependsOn run
@@ -64,7 +64,7 @@ shadowJar {
     relocate "net.fabricmc", "org.quiltmc.mappings_hasher.fabricmc"
     relocate "org.cadixdev", "org.quiltmc.mappings_hasher.cadixdev"
     relocate "me.jamiemansfield", "org.quiltmc.mappings_hasher.jamiemansfield"
-    relocate "info.picocli", "org.quiltmc.mappings_hasher.info.picocli"
+    relocate "picocli", "org.quiltmc.mappings_hasher.picocli"
 }
 
 publishing {
