@@ -6,7 +6,7 @@ plugins {
 }
 
 group 'org.quiltmc'
-version '1.0.0'
+version '1.0.0' + (System.getenv().SNAPSHOTS_URL ? "-SNAPSHOT" : "")
 
 // Target JDK 8
 tasks.withType(JavaCompile).configureEach {
