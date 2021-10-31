@@ -12,6 +12,7 @@ public class MethodInfo {
     private final int access;
 
     private final Set<MethodInfo> overrides;
+    private Set<MethodInfo> nameSet;
 
     public MethodInfo(ClassInfo owner, String name, String descriptor, int access) {
         this.owner = owner;
@@ -21,6 +22,9 @@ public class MethodInfo {
 
         // Check which methods this method overrides
         this.overrides = computeOverrides();
+
+        this.nameSet = new HashSet<>();
+        this.nameSet.add(this);
     }
 
     public ClassInfo owner() {
@@ -37,6 +41,10 @@ public class MethodInfo {
 
     public Set<MethodInfo> overrides() {
         return overrides;
+    }
+
+    public Set<MethodInfo> nameSet() {
+        return nameSet;
     }
 
     public String getFullName() {
@@ -57,6 +65,17 @@ public class MethodInfo {
 
     public boolean isPrivate() {
         return (access & Opcodes.ACC_PRIVATE) != 0;
+    }
+
+    public void mergeNameSetWith(MethodInfo methodInfo) {
+        for (MethodInfo method : methodInfo.nameSet) {
+            this.nameSet.add(method);
+            method.nameSet = this.nameSet;
+        }
+    }
+
+    public int access() {
+        return access;
     }
 
     private Set<MethodInfo> computeOverrides() {

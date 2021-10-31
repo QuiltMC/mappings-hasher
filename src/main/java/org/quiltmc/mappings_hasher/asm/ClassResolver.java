@@ -113,5 +113,10 @@ public class ClassResolver {
 
             return null;
         }
+
+        @Override
+        public void visitEnd() {
+            classInfo.finish();
+        }
     }
 }

@@ -1,7 +1,7 @@
 package org.quiltmc.mappings_hasher.asm;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class ClassInfo {
     private final String name;
@@ -39,5 +39,44 @@ public class ClassInfo {
 
     public Set<FieldInfo> fields() {
         return fields;
+    }
+
+    public boolean isSubClassOf(ClassInfo superClass) {
+        return superClass == this || superClasses.contains(superClass)
+                || superClasses.stream().anyMatch(s -> s.isSubClassOf(superClass));
+    }
+
+    public boolean canInherit(MethodInfo methodInfo) {
+        if (methodInfo.isStatic() || methodInfo.isPrivate() || !this.isSubClassOf(methodInfo.owner())) {
+            return false;
+        }
+
+        return methodInfo.isPublic() || methodInfo.isProtected()
+                || methodInfo.owner().getPackage().equals(this.getPackage());
+    }
+
+    private Set<MethodInfo> getAllMethods() {
+        Set<MethodInfo> methods = new HashSet<>(this.methods);
+        for (ClassInfo superClass : superClasses) {
+            methods.addAll(superClass.getAllMethods());
+        }
+        return methods;
+    }
+
+    public void finish() {
+        Map<String, List<MethodInfo>> visibleMethodsByFullName = new HashMap<>();
+        for (MethodInfo method : getAllMethods()) {
+            if (canInherit(method)) {
+                visibleMethodsByFullName
+                        .computeIfAbsent(method.name() + method.descriptor(), m -> new ArrayList<>()).add(method);
+            }
+        }
+
+        for (List<MethodInfo> nameSet : visibleMethodsByFullName.values()) {
+            MethodInfo first = nameSet.get(0);
+            for (MethodInfo method : nameSet) {
+                first.mergeNameSetWith(method);
+            }
+        }
     }
 }

@@ -21,7 +21,6 @@ public class HashedNameProvider {
     private final MappingSet mappings;
     private final String defaultPackage;
 
-    private final Map<MethodInfo, Set<MethodInfo>> methodNameSets;
     private final Map<String, Set<ClassInfo>> simpleClassNameSet;
 
     public HashedNameProvider(Set<ClassInfo> classes, MappingSet mappings, String defaultPackage) {
@@ -35,7 +34,6 @@ public class HashedNameProvider {
         this.mappings = mappings;
         this.defaultPackage = defaultPackage;
         this.simpleClassNameSet = computeSimpleClassNameSet(classes, mappings);
-        this.methodNameSets = computeMethodNameSets(classes.stream().flatMap(c -> c.methods().stream()).collect(Collectors.toSet()));
     }
 
     private static Map<String, Set<ClassInfo>> computeSimpleClassNameSet(Set<ClassInfo> classes, MappingSet mappings) {
@@ -55,37 +53,6 @@ public class HashedNameProvider {
         return simpleClassNameSet;
     }
 
-    private static Map<MethodInfo, Set<MethodInfo>> computeMethodNameSets(Set<MethodInfo> methods) {
-        Map<MethodInfo, Set<MethodInfo>> nameSets = new HashMap<>();
-
-        // Merge name sets
-        for (MethodInfo method : methods) {
-            // Create name set if it doesn't exist yet
-            Set<MethodInfo> nameSet = nameSets.computeIfAbsent(method, m -> new HashSet<>());
-
-            // Add method itself to the set
-            nameSet.add(method);
-
-            // Merge all superMethod name sets into this name set
-            for (MethodInfo superMethod : method.overrides()) {
-                Set<MethodInfo> superNameSet = nameSets.computeIfAbsent(superMethod, m -> new HashSet<>());
-                superNameSet.add(superMethod);
-                nameSet.addAll(superNameSet);
-            }
-
-            // Redirect all methods in this name set to this name set
-            for (MethodInfo setMethod : nameSet) {
-                nameSets.put(setMethod, nameSet);
-            }
-        }
-
-        // Only keep top-level methods in the name sets
-        for (Set<MethodInfo> nameSet : nameSets.values()) {
-            nameSet.removeIf(m -> m.overrides().size() > 0);
-        }
-
-        return nameSets;
-    }
 
     private String getRawClassName(ClassInfo clazz) {
         // Get the mapping
@@ -169,12 +136,12 @@ public class HashedNameProvider {
         }
 
         // The name of this method is determined by the first of its name set
-        Set<MethodInfo> nameSet = methodNameSets.get(method);
-        MethodInfo nameSource = nameSet.stream().min(Comparator.comparing(this::getRawMethodName))
+        MethodInfo nameSource = method.nameSet().stream().filter(m -> m.overrides().size() == 0)
+                .min(Comparator.comparing(this::getRawMethodName))
                 .orElseThrow(() -> new RuntimeException("No name source for method " + method.getFullName()));
 
         // No mapping is needed if the name doesn't come from this method
-        if (nameSource != method) {
+        if (method.overrides().size() != 0) {
             return Optional.empty();
         }
 
