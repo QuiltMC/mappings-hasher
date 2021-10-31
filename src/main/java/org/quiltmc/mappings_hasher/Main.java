@@ -15,11 +15,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.jar.JarFile;
-import java.util.jar.JarOutputStream;
-import java.util.zip.ZipEntry;
 
 public class Main {
-    public static void main(String[] args) throws IOException {
+    public static void main(String... args) throws IOException {
         if (args.length != 1) {
             System.out.println("Usage: <command> <version>");
             return;
@@ -29,6 +27,7 @@ public class Main {
         URL manifestUrl = new URL("https://launchermeta.mojang.com/mc/game/version_manifest_v2.json");
         InputStreamReader manifestReader = new InputStreamReader(manifestUrl.openConnection().getInputStream());
         JsonReader manifestJson = JsonReader.json(new BufferedReader(manifestReader));
+
         VersionManifest manifest = VersionManifest.fromJson(manifestJson);
 
         System.out.println("Reading version...");
@@ -51,14 +50,14 @@ public class Main {
         MappingSet obf_to_mojmap = mappingsReader.read().reverse();
         MappingsHasher mappingsHasher = new MappingsHasher(obf_to_mojmap, "net/minecraft/unmapped");
 
-        System.out.println("Loading libs...");
-        for (LibraryEntry lib : version.libraries()) {
-            JarFile libJar = new JarFile(lib.getOrDownload());
-            mappingsHasher.addLibrary(libJar);
-        }
-
         System.out.println("Loading client jar...");
         JarFile clientJar = new JarFile(version.downloads().get("client").getOrDownload());
+
+        System.out.println("Loading library jars...");
+        for (LibraryEntry library : version.libraries()) {
+            JarFile libJar = new JarFile(library.getOrDownload());
+            mappingsHasher.addLibrary(libJar);
+        }
 
         System.out.println("Generating mappings...");
         MappingSet obf_to_hashed = mappingsHasher.generate(clientJar);

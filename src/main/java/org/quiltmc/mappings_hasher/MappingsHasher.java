@@ -1,5 +1,6 @@
 package org.quiltmc.mappings_hasher;
 
+import java.util.Optional;
 import java.util.Set;
 import java.util.jar.JarFile;
 
@@ -34,68 +35,33 @@ public class MappingsHasher {
         // The class generating hashed names from class information and the original mappings
         HashedNameProvider nameProvider = new HashedNameProvider(classes, original, defaultPackage);
 
-        // Detect unobfuscated methods
-        for (ClassInfo classInfo : classes) {
-            ClassMapping<?, ?> classMapping = original.getClassMapping(classInfo.name())
-                    .orElseThrow(() -> new RuntimeException("Missing mapping for class " + classInfo.name()));
-
-            if (classInfo.name().equals(classMapping.getFullDeobfuscatedName())) {
-                classInfo.dontObfuscate();
-            }
-
-            for (MethodInfo methodInfo : classInfo.methods()) {
-                MethodMapping methodMapping = classMapping.getMethodMapping(methodInfo.name(), methodInfo.descriptor())
-                        .orElseThrow(() -> new RuntimeException("Missing mapping for method " + methodInfo.name()));
-
-                if (methodInfo.name().equals(methodMapping.getDeobfuscatedName())) {
-                    methodInfo.dontObfuscate();
-                }
-            }
-
-            for (FieldInfo fieldInfo : classInfo.fields()) {
-                FieldMapping fieldMapping = classMapping.getFieldMapping(FieldSignature.of(fieldInfo.name(), fieldInfo.descriptor()))
-                        .orElseThrow(() -> new RuntimeException("Missing mapping for field " + fieldInfo.name()));
-
-                if (fieldInfo.name().equals(fieldMapping.getDeobfuscatedName())) {
-                    fieldInfo.dontObfuscate();
-                }
-            }
-        }
-
         // Create the mappings
         MappingSet hashed = MappingSet.create();
         for (ClassInfo classInfo : classes) {
             // Create class mapping
             ClassMapping<?, ?> classHashed = hashed.getOrCreateClassMapping(classInfo.name());
 
-            // If null, assume no mapping is required
-            String className = nameProvider.getClassName(classInfo);
-            if (className != null) {
-                classHashed.setDeobfuscatedName(nameProvider.getClassName(classInfo));
-            }
+            // Use identity mapping for non-obfuscated classes
+            classHashed.setDeobfuscatedName(nameProvider.getClassName(classInfo).orElse(classInfo.name()));
 
             for (MethodInfo methodInfo : classInfo.methods()) {
-                // If null, assume no mapping is required
-                String methodName = nameProvider.getMethodName(methodInfo);
-                if (methodName == null) {
-                    continue;
-                }
+                Optional<String> hashedName = nameProvider.getMethodName(methodInfo);
 
-                // Create method mapping
-                MethodMapping methodHashed = classHashed.createMethodMapping(methodInfo.name(), methodInfo.descriptor());
-                methodHashed.setDeobfuscatedName(methodName);
+                // Create method mapping if required
+                if (hashedName.isPresent()) {
+                    MethodMapping methodHashed = classHashed.createMethodMapping(methodInfo.name(), methodInfo.descriptor());
+                    methodHashed.setDeobfuscatedName(hashedName.get());
+                }
             }
 
             for (FieldInfo fieldInfo : classInfo.fields()) {
-                // If null, assume no mapping is required
-                String fieldName = nameProvider.getFieldName(fieldInfo);
-                if (fieldName == null) {
-                    continue;
-                }
+                Optional<String> hashedName = nameProvider.getFieldName(fieldInfo);
 
-                // Create field mapping
-                FieldMapping fieldHashed = classHashed.createFieldMapping(FieldSignature.of(fieldInfo.name(), fieldInfo.descriptor()));
-                fieldHashed.setDeobfuscatedName(fieldName);
+                // Create field mapping if required+
+                if (hashedName.isPresent()) {
+                    FieldMapping fieldHashed = classHashed.createFieldMapping(FieldSignature.of(fieldInfo.name(), fieldInfo.descriptor()));
+                    fieldHashed.setDeobfuscatedName(hashedName.get());
+                }
             }
         }
 

@@ -10,18 +10,14 @@ public class MethodInfo {
     private final String name;
     private final String descriptor;
     private final int access;
-    private boolean obfuscated;
 
     private final Set<MethodInfo> overrides;
-
-    private final Set<String> annotations = new HashSet<>();
 
     public MethodInfo(ClassInfo owner, String name, String descriptor, int access) {
         this.owner = owner;
         this.name = name;
         this.descriptor = descriptor;
         this.access = access;
-        this.obfuscated = true;
 
         // Check which methods this method overrides
         this.overrides = computeOverrides();
@@ -39,20 +35,8 @@ public class MethodInfo {
         return descriptor;
     }
 
-    public void dontObfuscate() {
-        this.obfuscated = false;
-    }
-
-    public boolean isObfuscated() {
-        return obfuscated;
-    }
-
     public Set<MethodInfo> overrides() {
         return overrides;
-    }
-
-    public Set<String> annotations() {
-        return annotations;
     }
 
     public String getFullName() {
@@ -105,12 +89,13 @@ public class MethodInfo {
                     // Can override public and protected methods, and non-private methods in same package
                     if (superMethod.isPublic() || superMethod.isProtected() ||
                             !superMethod.isPrivate() && owner.getPackage().equals(superClass.getPackage())) {
-                        if (!superMethod.overrides.isEmpty()) {
-                            overrides.addAll(superMethod.overrides);
-                        }
-                        else {
-                            overrides.add(superMethod);
-                        }
+                        // Direct override
+                        overrides.add(superMethod);
+
+                        // Indirect overrides
+                        overrides.addAll(superMethod.overrides);
+
+                        // If override was found, no need to check further super classes
                         continue;
                     }
                 }

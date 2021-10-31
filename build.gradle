@@ -1,3 +1,5 @@
+import java.nio.file.Files
+
 plugins {
     id 'java'
     id 'application'
@@ -29,11 +31,26 @@ repositories {
     }
 }
 
+test {
+    useJUnitPlatform()
+    testLogging {
+        outputs.upToDateWhen {false}
+        showStandardStreams = true
+    }
+    delete 'test'
+    mkdir 'test'
+    workingDir 'test'
+}
+
 dependencies {
     implementation 'org.quiltmc:quilt-json5:1.0.0'
     implementation 'org.quiltmc:lorenz-tiny:3.0.0'
-    implementation 'org.cadixdev:lorenz-io-proguard:0.5.6'
-    implementation "org.ow2.asm:asm:9.1"
+    implementation 'org.cadixdev:lorenz-io-proguard:0.5.7'
+    implementation 'org.ow2.asm:asm:9.2'
+
+    testRuntimeOnly('org.junit.jupiter:junit-jupiter-engine:5.8.1')
+    testImplementation('org.junit.jupiter:junit-jupiter-api:5.8.1')
+    testImplementation 'org.quiltmc:tiny-remapper:0.7.1'
 }
 
 tasks.getByName("run").setArgsString(minecraftVersion)

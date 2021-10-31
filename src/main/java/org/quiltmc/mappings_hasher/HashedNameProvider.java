@@ -4,6 +4,7 @@ import org.cadixdev.bombe.type.signature.FieldSignature;
 import org.cadixdev.lorenz.MappingSet;
 import org.cadixdev.lorenz.model.ClassMapping;
 import org.cadixdev.lorenz.model.FieldMapping;
+import org.cadixdev.lorenz.model.Mapping;
 import org.cadixdev.lorenz.model.MethodMapping;
 import org.quiltmc.mappings_hasher.asm.ClassInfo;
 import org.quiltmc.mappings_hasher.asm.FieldInfo;
@@ -57,101 +58,97 @@ public class HashedNameProvider {
     private static Map<MethodInfo, Set<MethodInfo>> computeMethodNameSets(Set<MethodInfo> methods) {
         Map<MethodInfo, Set<MethodInfo>> nameSets = new HashMap<>();
 
-        // Add override information to name sets
+        // Merge name sets
         for (MethodInfo method : methods) {
-            for (MethodInfo override : method.overrides()) {
-                Set<MethodInfo> nameSet = nameSets.computeIfAbsent(override, m -> new HashSet<>());
-                nameSet.addAll(method.overrides());
-                nameSet.add(method);
-            }
+            // Create name set if it doesn't exist yet
             Set<MethodInfo> nameSet = nameSets.computeIfAbsent(method, m -> new HashSet<>());
-            nameSet.addAll(method.overrides());
+
+            // Add method itself to the set
             nameSet.add(method);
+
+            // Merge all superMethod name sets into this name set
+            for (MethodInfo superMethod : method.overrides()) {
+                Set<MethodInfo> superNameSet = nameSets.computeIfAbsent(superMethod, m -> new HashSet<>());
+                superNameSet.add(superMethod);
+                nameSet.addAll(superNameSet);
+            }
+
+            // Redirect all methods in this name set to this name set
+            for (MethodInfo setMethod : nameSet) {
+                nameSets.put(setMethod, nameSet);
+            }
         }
 
-        // Resolve name sets
-        for (MethodInfo method : methods) {
-            Set<MethodInfo> nameSet = nameSets.computeIfAbsent(method, m -> new HashSet<>());
-
-            // Methods that don't override and aren't overridden are only dependent on themselves
-            if (nameSet.isEmpty()) {
-                nameSet.add(method);
-                continue;
-            }
-
-            // All methods in a name set must have the same name set, we check this recursively
-            Set<MethodInfo> toCheck = new HashSet<>(nameSet);
-            while (!toCheck.isEmpty()) {
-                Set<MethodInfo> currentSet = toCheck;
-                toCheck = new HashSet<>();
-
-                for (MethodInfo current : currentSet) {
-                    Set<MethodInfo> currentNameSet = nameSets.get(current);
-                    for (MethodInfo nextToCheck : currentNameSet) {
-                        if (!nameSet.contains(nextToCheck)) {
-                            nameSet.add(nextToCheck);
-                            toCheck.add(nextToCheck);
-                        }
-                    }
-                }
-            }
+        // Only keep top-level methods in the name sets
+        for (Set<MethodInfo> nameSet : nameSets.values()) {
+            nameSet.removeIf(m -> m.overrides().size() > 0);
         }
 
         return nameSets;
     }
 
-    public String getRawClassName(ClassInfo clazz) {
-        // Don't look up unobfuscated names
-        if (!clazz.isObfuscated()) {
-            return clazz.name();
-        }
-
+    private String getRawClassName(ClassInfo clazz) {
         // Get the mapping
         ClassMapping<?, ?> classMapping = mappings.getClassMapping(clazz.name())
                 .orElseThrow(() -> new RuntimeException("Missing mapping for class " + clazz.name()));
 
-        // Simple name: Full name without the package, e.g. net/example/Class$Inner -> Class$Inner
+        // Don't obfuscate non-obfuscated classes
+        if (!isObfuscated(classMapping)) {
+            return clazz.name();
+        }
+
+        // Ful name: Package + Outer Class + Inner Class
         String fullName = classMapping.getFullDeobfuscatedName();
+
+        // Simple name: Full name without the package, e.g. net/example/Class$Inner -> Class$Inner
         String simpleName = fullName.substring(fullName.lastIndexOf('/') + 1);
 
-        // Use the simple name for unique classes, otherwise the full names
-        if (simpleClassNameSet.get(simpleName).size() > 1) {
-            return fullName;
-        }
-        else {
-            return simpleName;
-        }
+        // Raw name: The simple name if unique, otherwise the full name
+        return simpleClassNameSet.get(simpleName).size() == 1 ? simpleName : fullName;
     }
 
-    public String getClassName(ClassInfo clazz) {
-        // No need for a mapping if the method isn't obfuscated
-        if (!clazz.isObfuscated()) {
-            return null;
+    public Optional<String> getClassName(ClassInfo clazz) {
+        // Get the mapping
+        ClassMapping<?, ?> classMapping = mappings.getClassMapping(clazz.name())
+                .orElseThrow(() -> new RuntimeException("Missing mapping for class " + clazz.name()));
+
+        // Don't obfuscate non-obfuscated classes
+        if (!isObfuscated(classMapping)) {
+            return Optional.empty();
         }
 
+        // Prefix: None for inner classes, otherwise the default package (if non-empty)
         String prefix = clazz.name().contains("$") || this.defaultPackage.isEmpty() ? "" : this.defaultPackage + "/";
 
-        return prefix + "C_" + getHashedString(getRawClassName(clazz));
+        // Hashed name: prefix plus class identifier plus hash of raw name
+        return Optional.of(prefix + "C_" + getHashedString(getRawClassName(clazz)));
     }
 
     public String getRawMethodName(MethodInfo method) {
-        // Don't look up unobfuscated names
-        if (!method.isObfuscated()) {
-            return method.name();
-        }
-
         // Get the mappings
         ClassMapping<?, ?> classMapping = mappings.getClassMapping(method.owner().name())
                 .orElseThrow(() -> new RuntimeException("Missing mapping for class " + method.owner().name()));
         MethodMapping methodMapping = classMapping.getMethodMapping(method.name(), method.descriptor())
                 .orElseThrow(() -> new RuntimeException("Missing mapping for method " + method.getFullName()));
 
-        String className = getRawClassName(method.owner());
-        boolean isMethodNameUnique = classMapping.getMethodMappings().stream()
+        // No need for a mapping if the method isn't obfuscated
+        if (!isObfuscated(methodMapping)) {
+            return method.name();
+        }
+
+        // Check if there's a method with the same name (but different descriptor)
+        boolean isMethodNameNonUnique = classMapping.getMethodMappings().stream()
                 .filter(m -> m.getDeobfuscatedName().equals(methodMapping.getDeobfuscatedName()))
-                .count() == 1;
+                .count() > 1;
+
+        // Get the raw class name
+        String className = getRawClassName(method.owner());
+
+        // Get the method name
         String methodName = methodMapping.getDeobfuscatedName();
-        String methodDescriptor = isMethodNameUnique ? "" : methodMapping.getDeobfuscatedDescriptor();
+
+        // Omit the descriptor for unique method names
+        String methodDescriptor = isMethodNameNonUnique ? methodMapping.getDeobfuscatedDescriptor() : "";
 
         // "m;" prefix: methods with omitted descriptors need to be different to fields
         // Note that ";" and "." are illegal in jvm identifiers, so this should be safe
@@ -159,57 +156,57 @@ public class HashedNameProvider {
         return "m;" + className + "." + methodName + ";" + methodDescriptor;
     }
 
-    public String getMethodName(MethodInfo method) {
+    public Optional<String> getMethodName(MethodInfo method) {
+        // Get the mappings
+        ClassMapping<?, ?> classMapping = mappings.getClassMapping(method.owner().name())
+                .orElseThrow(() -> new RuntimeException("Missing mapping for class " + method.owner().name()));
+        MethodMapping methodMapping = classMapping.getMethodMapping(method.name(), method.descriptor())
+                .orElseThrow(() -> new RuntimeException("Missing mapping for method " + method.getFullName()));
+
         // No need for a mapping if the method isn't obfuscated
-        if (!method.isObfuscated()) {
-            return null;
+        if (!isObfuscated(methodMapping)) {
+            return Optional.empty();
         }
 
-        // No need to map certain special method names
-        if (method.name().equals("<init>") || method.name().equals("<clinit>")) {
-            return null;
-        }
-
+        // The name of this method is determined by the first of its name set
         Set<MethodInfo> nameSet = methodNameSets.get(method);
+        MethodInfo nameSource = nameSet.stream().min(Comparator.comparing(this::getRawMethodName))
+                .orElseThrow(() -> new RuntimeException("No name source for method " + method.getFullName()));
 
-        String rawName = getRawMethodName(method);
-        for (MethodInfo current : nameSet) {
-            // No need for a mapping if there's an unobfuscated method in the name set
-            if (!current.isObfuscated()) {
-                return null;
-            }
-
-            String currentRawName = getRawMethodName(current);
-
-            // Take the lexicographically "biggest" raw name
-            // If this is method isn't name-giving, no need to map it
-            if (currentRawName.compareTo(rawName) > 0) {
-                return null;
-            }
+        // No mapping is needed if the name doesn't come from this method
+        if (nameSource != method) {
+            return Optional.empty();
         }
 
-        return "m_" + getHashedString(rawName);
+        return Optional.of("m_" + getHashedString(getRawMethodName(nameSource)));
     }
 
     public String getRawFieldName(FieldInfo field) {
-        // Don't look up unobfuscated names
-        if (!field.isObfuscated()) {
-            return field.name();
-        }
-
         // Get the mappings
         ClassMapping<?, ?> classMapping = mappings.getClassMapping(field.owner().name())
                 .orElseThrow(() -> new RuntimeException("Missing mapping for class " + field.owner().name()));
         FieldMapping fieldMapping = classMapping.getFieldMapping(FieldSignature.of(field.name(), field.descriptor()))
                 .orElseThrow(() -> new RuntimeException("Missing mapping for field " + field.name()));
 
-        String className = getRawClassName(field.owner());
-        String fieldName = fieldMapping.getDeobfuscatedName();
+        // No need for a mapping if the field isn't obfuscated
+        if (!isObfuscated(fieldMapping)) {
+            return field.name();
+        }
+
+        // Check if there's a field with the same name (but different descriptor)
         // While java doesn't allow it, the jvm allows fields that only differ in their descriptor.
-        boolean isFieldNameUnique = classMapping.getFieldMappings().stream()
+        boolean isFieldNameNonUnique = classMapping.getFieldMappings().stream()
                 .filter(f -> f.getDeobfuscatedName().equals(fieldMapping.getDeobfuscatedName()))
-                .count() == 1;
-        String fieldDescriptor = isFieldNameUnique ? "" : fieldMapping.getType().get().toString();
+                .count() > 1;
+
+        // Get the raw class name
+        String className = getRawClassName(field.owner());
+
+        // Get the field name
+        String fieldName = fieldMapping.getDeobfuscatedName();
+
+        // Omit the descriptor for unique field names
+        String fieldDescriptor = isFieldNameNonUnique ? fieldMapping.getType().get().toString() : "";
 
         // "f;" prefix: fields need to be different to methods with omitted descriptors
         // Note that ";" and "." are illegal in jvm identifiers, so this should be safe
@@ -217,13 +214,24 @@ public class HashedNameProvider {
         return "f;" + className + "." + fieldName + ";" + fieldDescriptor;
     }
 
-    public String getFieldName(FieldInfo field) {
+    public Optional<String> getFieldName(FieldInfo field) {
+        // Get the mappings
+        ClassMapping<?, ?> classMapping = mappings.getClassMapping(field.owner().name())
+                .orElseThrow(() -> new RuntimeException("Missing mapping for class " + field.owner().name()));
+        FieldMapping fieldMapping = classMapping.getFieldMapping(FieldSignature.of(field.name(), field.descriptor()))
+                .orElseThrow(() -> new RuntimeException("Missing mapping for field " + field.name()));
+
         // No need for a mapping if the field isn't obfuscated
-        if (!field.isObfuscated()) {
-            return null;
+        if (!isObfuscated(fieldMapping)) {
+            return Optional.empty();
         }
 
-        return "f_" + getHashedString(getRawFieldName(field));
+        return Optional.of("f_" + getHashedString(getRawFieldName(field)));
+    }
+
+    private boolean isObfuscated(Mapping<?, ?> mapping) {
+        return mapping.getDeobfuscatedName().length() == 1 ||
+                !mapping.getDeobfuscatedName().equals(mapping.getObfuscatedName());
     }
 
     private String getHashedString(String string) {
