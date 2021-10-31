@@ -246,7 +246,7 @@ public class HashedNameProvider {
             int digit = bigInteger.mod(BigInteger.valueOf(base)).intValue();
             bigInteger = bigInteger.divide(BigInteger.valueOf(base));
 
-            builder.append((char)('a' + digit));
+            builder.insert(0, (char)('a' + digit));
         }
 
         return builder.toString();
