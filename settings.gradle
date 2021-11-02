@@ -1,7 +1,1 @@
 rootProject.name = 'mappings-hasher'
-
-sourceControl {
-    gitRepository (uri('https://github.com/OroArmor/launchermeta-parser.git')) {
-        producesModule("org.quiltmc:launchermeta-parser")
-    }
-}

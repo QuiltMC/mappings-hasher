@@ -1,6 +1,5 @@
 package org.quiltmc.mappings_hasher;
 
-import com.google.gson.Gson;
 import net.fabricmc.lorenztiny.TinyMappingsWriter;
 import org.cadixdev.lorenz.MappingSet;
 import org.cadixdev.lorenz.io.TextMappingsReader;
@@ -77,7 +76,7 @@ public class Main implements Callable<Integer> {
         else if (versionSource.version != null) {
             URL manifestUrl = new URL("https://launchermeta.mojang.com/mc/game/version_manifest.json");
             InputStreamReader manifestReader = new InputStreamReader(new BufferedInputStream(manifestUrl.openStream()));
-            VersionManifest manifest = new Gson().fromJson(manifestReader, VersionManifest.class);
+            VersionManifest manifest = VersionManifest.fromReader(manifestReader);
             Optional<VersionEntry> entry = manifest.getVersions().stream().filter(e -> e.getId().equals(versionSource.version)).findAny();
             if (entry.isPresent()) {
                 reader = new InputStreamReader(new BufferedInputStream(new URL(entry.get().getUrl()).openStream()));
@@ -94,7 +93,7 @@ public class Main implements Callable<Integer> {
         }
 
         System.out.println("Reading manifest...");
-        Version version = Version.GSON.fromJson(reader, Version.class);
+        Version version = Version.fromReader(reader);
 
         DownloadableFile clientJarDownload = version.getDownloads().getClient();
         DownloadableFile clientMappingsDownload = version.getDownloads().getClientMappings()
@@ -129,7 +128,7 @@ public class Main implements Callable<Integer> {
                 }
             }
 
-            libraryDownloads.add(library.getDownloads().getArtifact());
+            library.getDownloads().getArtifact().ifPresent(libraryDownloads::add);
         }
 
         System.out.println("Downloading files...");
