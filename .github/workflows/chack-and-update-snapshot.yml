@@ -1,0 +1,41 @@
+name: "Check the manifest and update hashed if needed"
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+
+jobs:
+  check-updates:
+    runs-on: ubuntu-latest
+    outputs:
+      id: ${{ steps.check.outputs.id }}
+    steps:
+      - name: 'Check Minecraft updates'
+        uses: ByMartrixX/minecraft-update-check-action@v0
+        id: check
+        with:
+          cache-base-key: mc-manifest- # Cache keys will be like mc-manifest-1609470000
+  generate-and-publish:
+    needs: check-updates
+    if: ${{ needs.check-updates.outputs.id != '' }}
+    runs-on: ubuntu-latest
+    container:
+      image: openjdk:16-jdk
+      options: --user root
+    steps:
+      - name: Cache build and application cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ./build
+            ./cache
+          key: hashed-mojmap
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Validate Gradle wrapper
+        uses: gradle/wrapper-validation-action@v1
+      - name: Generate and publish mappings
+        run: ./gradlew publish -PminecraftVersion="${{ needs.check-updates.outputs.id }}" --stacktrace
+        env:
+          MAVEN_URL: ${{ secrets.SNAPSHOTS_URL }}
+          MAVEN_USERNAME: ${{ secrets.SNAPSHOTS_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.SNAPSHOTS_PASSWORD }}
