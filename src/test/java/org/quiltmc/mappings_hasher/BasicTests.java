@@ -22,8 +22,6 @@ public class BasicTests {
     }
 
     private static void assertEqualContent(Path expected, Path actual) throws IOException {
-        String expectedContent = String.join("\n", Files.readAllLines(expected));
-        String actualContent = String.join("\n", Files.readAllLines(actual));
-        Assertions.assertEquals(expectedContent, actualContent, "Content of " + actual + " is not equal to " + expected);
+        Assertions.assertLinesMatch(Files.readAllLines(expected), Files.readAllLines(actual), "Content of " + actual + " is not equal to " + expected);
     }
 }
