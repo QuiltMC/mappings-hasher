@@ -36,6 +36,6 @@ jobs:
       - name: Generate and publish mappings
         run: ./gradlew publish -PminecraftVersion="${{ needs.check-updates.outputs.id }}" --stacktrace
         env:
-          MAVEN_URL: ${{ secrets.SNAPSHOTS_URL }}
-          MAVEN_USERNAME: ${{ secrets.SNAPSHOTS_USERNAME }}
-          MAVEN_PASSWORD: ${{ secrets.SNAPSHOTS_PASSWORD }}
+          SNAPSHOTS_URL: ${{ secrets.SNAPSHOTS_URL }}
+          SNAPSHOTS_USERNAME: ${{ secrets.SNAPSHOTS_USERNAME }}
+          SNAPSHOTS_PASSWORD: ${{ secrets.SNAPSHOTS_PASSWORD }}
