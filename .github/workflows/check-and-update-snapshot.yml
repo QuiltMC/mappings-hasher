@@ -29,7 +29,7 @@ jobs:
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@v1
       - name: Generate and publish mappings
-        run: ./gradlew publish -PversionJsonUrl="${{ needs.check-updates.outputs.url }}" --stacktrace
+        run: ./gradlew publish -PversionJsonUrl="${{ needs.check-updates.outputs.url }}" -PminecraftVersion="${{ needs.check-updates.outputs.id }}" --stacktrace
         env:
           SNAPSHOTS_URL: ${{ secrets.SNAPSHOTS_URL }}
           SNAPSHOTS_USERNAME: ${{ secrets.SNAPSHOTS_USERNAME }}
