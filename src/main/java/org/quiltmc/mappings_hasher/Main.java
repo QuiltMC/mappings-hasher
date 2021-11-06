@@ -74,7 +74,7 @@ public class Main implements Callable<Integer> {
             reader = new InputStreamReader(zipInputStream);
         }
         else if (versionSource.version != null) {
-            URL manifestUrl = new URL("https://launchermeta.mojang.com/mc/game/version_manifest.json");
+            URL manifestUrl = new URL("https://launchermeta.mojang.com/mc/game/version_manifest_v2.json");
             InputStreamReader manifestReader = new InputStreamReader(new BufferedInputStream(manifestUrl.openStream()));
             VersionManifest manifest = VersionManifest.fromReader(manifestReader);
             Optional<VersionEntry> entry = manifest.getVersions().stream().filter(e -> e.getId().equals(versionSource.version)).findAny();

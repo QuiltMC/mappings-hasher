@@ -67,7 +67,11 @@ dependencies {
     testImplementation 'org.quiltmc:tiny-remapper:0.7.1'
 }
 
-tasks.getByName("run").setArgs(["--version", minecraftVersion])
+if (!versionJsonUrl.isEmpty()) {
+    tasks.getByName("run").setArgs(["--url", versionJsonUrl])
+} else {
+    tasks.getByName("run").setArgs(["--version", minecraftVersion])
+}
 
 task mappingsJar(type: Jar) {
     dependsOn run
