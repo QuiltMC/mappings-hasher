@@ -76,7 +76,7 @@ public class ClassResolver {
         private ClassInfo classInfo;
 
         public ClassVisitor(ClassResolver resolver) {
-            super(Opcodes.ASM7);
+            super(Opcodes.ASM9);
             this.resolver = resolver;
         }
 
