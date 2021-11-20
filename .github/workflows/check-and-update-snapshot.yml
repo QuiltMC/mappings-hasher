@@ -1,7 +1,7 @@
 name: "Check the manifest and update hashed if needed"
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '5/10 * * * *'
 
 jobs:
   check-updates:
