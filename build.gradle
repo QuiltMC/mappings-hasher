@@ -97,11 +97,13 @@ shadowJar {
 publishing {
     def ENV = System.getenv()
     publications {
-        mavenHashed(MavenPublication) {
-            groupId = 'org.quiltmc'
-            artifactId = 'hashed'
-            version = minecraftVersion + (System.getenv().SNAPSHOTS_URL ? "-SNAPSHOT" : "")
-            artifacts = [mappingsJar, file("mappings/hashed-${minecraftVersion}.tiny")]
+        if (!project.hasProperty("shouldPublishHasher")) {
+            mavenHashed(MavenPublication) {
+                groupId = 'org.quiltmc'
+                artifactId = 'hashed'
+                version = minecraftVersion + (System.getenv().SNAPSHOTS_URL ? "-SNAPSHOT" : "")
+                artifacts = [mappingsJar, file("mappings/hashed-${minecraftVersion}.tiny")]
+            }
         }
 
         if (project.hasProperty("shouldPublishHasher") || ENV.SNAPSHOTS_URL) {
