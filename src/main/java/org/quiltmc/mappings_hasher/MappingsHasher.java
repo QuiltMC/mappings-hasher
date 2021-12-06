@@ -2,6 +2,7 @@ package org.quiltmc.mappings_hasher;
 
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.jar.JarFile;
 
 import org.cadixdev.bombe.type.signature.FieldSignature;
@@ -28,9 +29,9 @@ public class MappingsHasher {
         classResolver.addLibrary(jar);
     }
 
-    public MappingSet generate(JarFile jar) {
+    public MappingSet generate(JarFile jar, Predicate<ClassInfo> classFilter) {
         // Extract class information (for method overrides mostly)
-        Set<ClassInfo> classes = classResolver.extractClassInfo(jar);
+        Set<ClassInfo> classes = classResolver.extractClassInfo(jar, classFilter);
 
         // The class generating hashed names from class information and the original mappings
         HashedNameProvider nameProvider = new HashedNameProvider(classes, original, defaultPackage);

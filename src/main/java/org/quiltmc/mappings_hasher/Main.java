@@ -157,7 +157,7 @@ public class Main implements Callable<Integer> {
         }
 
         System.out.println("Generating mappings...");
-        MappingSet mappingSet = mappingsHasher.generate(new JarFile(clientJar.toFile()));
+        MappingSet mappingSet = mappingsHasher.generate(new JarFile(clientJar.toFile()), classInfo -> true);
 
         if (outFile == null) {
             outFile = Paths.get("mappings", "hashed-" + version.getId() + ".tiny");

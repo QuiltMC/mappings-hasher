@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.jar.JarFile;
 
 public class ClassResolver {
@@ -15,7 +16,7 @@ public class ClassResolver {
 
     public ClassResolver() { }
 
-    public Set<ClassInfo> extractClassInfo(JarFile jar) {
+    public Set<ClassInfo> extractClassInfo(JarFile jar, Predicate<ClassInfo> classFilter) {
         addJar(jar);
 
         Set<ClassInfo> classes = new HashSet<>();
@@ -23,7 +24,9 @@ public class ClassResolver {
             if (jarEntry.getName().endsWith(".class")) {
                 String className = jarEntry.getName().substring(0, jarEntry.getName().lastIndexOf('.'));
                 ClassInfo info = getClassInfo(className);
-                classes.add(info);
+                if (classFilter.test(info)) {
+                    classes.add(info);
+                }
             }
         });
 
