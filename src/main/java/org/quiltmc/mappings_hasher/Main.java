@@ -160,7 +160,9 @@ public class Main implements Callable<Integer> {
         MappingSet mappingSet = mappingsHasher.generate(new JarFile(clientJar.toFile()), classInfo -> true);
 
         if (outFile == null) {
-            outFile = Paths.get("mappings", "hashed-" + version.getId() + ".tiny");
+            // Previous outFile path - breaks Tiny convention for mappings location
+            // outFile = Paths.get("mappings", "hashed-" + version.getId() + ".tiny");
+            outFile = Paths.get("mappings", "mappings.tiny");
         }
 
         System.out.println("Writing mappings...");
