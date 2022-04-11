@@ -1,4 +1,4 @@
-name: "Generate and publish"
+name: "Generate and publish experimental snapshot"
 on:
   workflow_dispatch:
     inputs:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   generate-and-publish:
-    name: Generate and publish for Minecraft ${{ github.event.inputs.version }}
+    name: Generate and publish Minecraft version specified by zip at ${{ github.event.inputs.url }}
     runs-on: ubuntu-latest
     container:
       image: openjdk:16-jdk
