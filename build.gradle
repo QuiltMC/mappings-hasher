@@ -108,7 +108,7 @@ publishing {
                 groupId = 'org.quiltmc'
                 artifactId = 'hashed'
                 version = minecraftVersion + (System.getenv().SNAPSHOTS_URL ? "-SNAPSHOT" : "")
-                artifacts = [mappingsJar, file("mappings/hashed-${minecraftVersion}.tiny")]
+                artifacts = [mappingsJar, file("mappings/mappings.tiny")]
             }
         }
 
