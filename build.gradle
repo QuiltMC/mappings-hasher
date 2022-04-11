@@ -76,9 +76,9 @@ if (!versionJsonUrl.isEmpty()) {
 
 task mappingsJar(type: Jar) {
     dependsOn run
-    from "mappings/hashed-${minecraftVersion}.tiny"
+    from "mappings/mappings.tiny"
     eachFile {
-        setName("hashed/mappings.tiny")
+        setName("mappings/mappings.tiny")
     }
 }
 
