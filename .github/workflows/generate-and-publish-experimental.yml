@@ -2,6 +2,9 @@ name: "Generate and publish experimental snapshot"
 on:
   workflow_dispatch:
     inputs:
+      version:
+        description: "Minecraft version from the version manifest. MUST MATCH THE VERSION IN THE ZIP!"
+        required: true
       url:
         description: "URL to the zip containing the Minecraft version json"
         required: true
@@ -19,7 +22,7 @@ jobs:
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@v1
       - name: Generate and publish mappings
-        run: ./gradlew publish -PversionZipUrl="${{ github.event.inputs.url }}" --stacktrace
+        run: ./gradlew publish -PminecraftVersion="${{ github.event.inputs.version }}" -PversionZipUrl="${{ github.event.inputs.url }}" --stacktrace
         env:
           MAVEN_URL: ${{ secrets.MAVEN_URL }}
           MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
