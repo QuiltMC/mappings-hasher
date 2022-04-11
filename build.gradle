@@ -70,6 +70,8 @@ dependencies {
 
 if (!versionJsonUrl.isEmpty()) {
     tasks.getByName("run").setArgs(["--json", versionJsonUrl])
+} else if (!versionZipUrl.isEmpty()) {
+    tasks.getByName("run").setArgs(["--zip", versionZipUrl])
 } else {
     tasks.getByName("run").setArgs(["--version", minecraftVersion])
 }

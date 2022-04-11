@@ -1,0 +1,32 @@
+name: "Generate and publish"
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "URL to the zip containing the Minecraft version json"
+        required: true
+
+jobs:
+  generate-and-publish:
+    name: Generate and publish for Minecraft ${{ github.event.inputs.version }}
+    runs-on: ubuntu-latest
+    container:
+      image: openjdk:16-jdk
+      options: --user root
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Validate Gradle wrapper
+        uses: gradle/wrapper-validation-action@v1
+      - name: Generate and publish mappings
+        run: ./gradlew publish -PversionZipUrl="${{ github.event.inputs.url }}" --stacktrace
+        env:
+          MAVEN_URL: ${{ secrets.MAVEN_URL }}
+          MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+      - name: Refresh Meta
+        uses: fjogeleit/http-request-action@master
+        with:
+          url: ${{ secrets.META_UPDATE_URL }}
+          method: 'GET'
+          preventFailureOnNoResponse: true
