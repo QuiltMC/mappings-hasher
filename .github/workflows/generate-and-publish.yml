@@ -16,8 +16,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
-      - name: Validate Gradle wrapper
-        uses: gradle/wrapper-validation-action@v1
       - name: Generate and publish mappings
         run: ./gradlew publish -PminecraftVersion="${{ github.event.inputs.version }}" --stacktrace
         env:
