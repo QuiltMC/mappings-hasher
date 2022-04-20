@@ -56,7 +56,7 @@ dependencies {
     shadow 'org.quiltmc:quilt-json5:1.0.0'
     shadow 'org.quiltmc:lorenz-tiny:3.0.0'
     shadow 'org.cadixdev:lorenz-io-proguard:0.5.7'
-    shadow 'org.ow2.asm:asm:9.2'
+    shadow 'org.ow2.asm:asm:9.3'
     shadow 'info.picocli:picocli:4.6.1'
     shadow 'org.quiltmc:launchermeta-parser:1.0.0'
 
