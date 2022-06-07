@@ -1,5 +1,6 @@
 name: "Check the manifest and update hashed if needed"
 on:
+  workflow_dispatch:
   schedule:
     - cron: '5/10 * * * *'
 
