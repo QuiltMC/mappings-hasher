@@ -16,7 +16,7 @@ jobs:
         id: check
         with:
           cache-base-key: mc-manifest- # Cache keys will be like mc-manifest-1609470000
-          version-mainfest-url: https://piston-meta.mojang.com/mc/game/version_manifest_v2.json
+          version-manifest-url: https://piston-meta.mojang.com/mc/game/version_manifest_v2.json
   generate-and-publish:
     needs: check-updates
     if: ${{ needs.check-updates.outputs.id != '' }}
