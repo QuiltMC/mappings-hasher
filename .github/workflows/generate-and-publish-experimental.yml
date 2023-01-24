@@ -14,7 +14,7 @@ jobs:
     name: Generate and publish Minecraft version specified by zip at ${{ github.event.inputs.url }}
     runs-on: ubuntu-latest
     container:
-      image: openjdk:17-jdk
+      image: openjdk:16-jdk
       options: --user root
     steps:
       - name: Checkout repository

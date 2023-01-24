@@ -11,7 +11,7 @@ jobs:
     name: Generate and publish for Minecraft ${{ github.event.inputs.version }}
     runs-on: ubuntu-latest
     container:
-      image: openjdk:17-jdk
+      image: openjdk:16-jdk
       options: --user root
     steps:
       - name: Checkout repository
