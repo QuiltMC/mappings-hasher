@@ -14,11 +14,11 @@ jobs:
     name: Generate and publish Minecraft version specified by zip at ${{ github.event.inputs.url }}
     runs-on: ubuntu-latest
     container:
-      image: openjdk:16-jdk
+      image: openjdk:17-jdk
       options: --user root
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@v1
       - name: Generate and publish mappings
