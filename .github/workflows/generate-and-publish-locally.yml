@@ -1,4 +1,4 @@
-name: "Generate and publish"
+name: "Generate and publish locally"
 on:
   workflow_dispatch:
     inputs:
