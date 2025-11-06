@@ -7,7 +7,7 @@ jobs:
     name: Publish Hasher
     runs-on: ubuntu-latest
     container:
-      image: openjdk:16-jdk
+      image: eclipse-temurin:21
       options: --user root
     steps:
       - name: Checkout repository
