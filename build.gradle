@@ -143,5 +143,7 @@ publishing {
                 }
             }
         }
+
+        mavenLocal()
     }
 }
